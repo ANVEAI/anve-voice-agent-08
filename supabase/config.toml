@@ -1,0 +1,10 @@
+project_id = "oiglypzvfxuiiqkmwzyr"
+
+[functions.tools-scroll]
+verify_jwt = false
+
+[functions.tools-click]
+verify_jwt = false
+
+[functions.tools-fill]
+verify_jwt = false
