@@ -1095,6 +1095,18 @@ const VoiceNavigator = () => {
     const ph = (el.getAttribute('placeholder') || '').toLowerCase();
     const aria = (el.getAttribute('aria-label') || '').toLowerCase();
     const lbl = findLabelTextFor(el).toLowerCase();
+    const isTextarea = el.tagName.toLowerCase() === 'textarea';
+    const isInput = el.tagName.toLowerCase() === 'input';
+
+    // Field type priority bonuses/penalties
+    if (h === 'name' || h === 'email' || h === 'phone' || h === 'search') {
+      // For specific single-value fields, prefer input over textarea
+      if (isInput) score += 3000;
+      if (isTextarea) score -= 2000;
+    } else if (h === 'message' || h === 'description') {
+      // For long-form content, prefer textarea
+      if (isTextarea) score += 1000;
+    }
 
     const bump = (txt, w) => { if (txt.includes(h)) score += w; };
     bump(id, 5000);
@@ -1113,11 +1125,20 @@ const VoiceNavigator = () => {
       description: ['details','info','information','issue-description','idea-description'],
       address: ['street','city','state','zip','postal','postcode']
     };
+
     if (synonyms[h]) {
       const syns = synonyms[h];
       [id,name,ph,aria,lbl].forEach(txt => {
         syns.forEach(s => { if (txt.includes(s)) score += 2500; });
       });
+    }
+
+    // Negative scoring for obvious mismatches
+    if (h === 'name' && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
+      score -= 5000;
+    }
+    if (h === 'email' && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
+      score -= 5000;
     }
 
     return score;
@@ -1151,10 +1172,13 @@ const VoiceNavigator = () => {
       candidates.slice(0, 3).forEach((el, i) => {
         console.log('[debug] candidate ' + (i+1) + ':', {
           tag: el.tagName,
+          type: el.type || 'N/A',
           id: el.id,
           name: el.getAttribute('name'),
           placeholder: el.getAttribute('placeholder'),
-          score: fieldScore(el, fieldHint)
+          score: fieldScore(el, fieldHint),
+          isTextarea: el.tagName.toLowerCase() === 'textarea',
+          isInput: el.tagName.toLowerCase() === 'input'
         });
       });
     } else {
