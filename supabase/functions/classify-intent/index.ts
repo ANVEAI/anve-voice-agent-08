@@ -161,9 +161,26 @@ NAVIGATION EXAMPLES (CRITICAL - All navigate to pages):
 - "take me to home" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"home"}}
 
 SCROLL EXAMPLES (Only for content sections on same page):
-- "scroll to about section" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"down"}}
+- "scroll down" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"down"}}
+- "scroll up" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"up"}}
+- "scroll to top" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"top"}}
+- "scroll to the top" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"top"}}
+- "scroll to bottom" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"bottom"}}
+- "scroll to the bottom" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"bottom"}}
+- "scroll to the very bottom" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"bottom"}}
+- "scroll all the way down" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"bottom"}}
+- "scroll all the way up" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"top"}}
+- "go to top" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"top"}}
+- "go to bottom" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
+- "go to the bottom" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
+- "go to the very bottom" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
 - "show me the footer" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
-- "scroll down" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"down"}}`;
+- "show me the bottom" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
+- "take me to the bottom" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
+- "take me to the top" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"top"}}
+- "scroll to about section" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"down"}}
+- "page down" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"down"}}
+- "page up" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"up"}}`;
 
   const userPrompt = `User command: "${transcript}"${contextString}${urlContext}`;
 
@@ -345,18 +362,23 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
     scroll: {
       patterns: [
         /\b(scroll|page)\s+(up|down)\b/,
-        /\bscroll\s+(to\s+)?(top|bottom)\b/,
-        /\b(go|move|jump)\s+(to\s+)?(top|bottom|up|down)\b/,
-        /\b(go|take|bring|navigate)\s+(me\s+)?to\s+(the\s+)?(top|bottom|footer|header|end|beginning)\b/,
+        /\bscroll\s+(to\s+)?(the\s+)?(very\s+)?(top|bottom)\b/,
+        /\bscroll\s+all\s+the\s+way\s+(up|down)\b/,
+        /\b(go|move|jump|take\s+me)\s+(to\s+)?(the\s+)?(very\s+)?(top|bottom|up|down)\b/,
+        /\b(go|take|bring|navigate)\s+(me\s+)?to\s+(the\s+)?(very\s+)?(top|bottom|footer|header|end|beginning)\b/,
         /\b(show|display)\s+(me\s+)?(the\s+)?(footer|header|top|bottom)\b/,
         /\bscroll\s+to\s+.+/,
-        /\b(last|final)\s+section\b/
+        /\b(last|final)\s+section\b/,
+        /\bpage\s+(up|down)\b/
       ],
       getDirection: (text: string) => {
         if (/\b(up|top|header|beginning|previous)\b/.test(text)) return 'up';
         if (/\b(down|bottom|footer|end|last|final|next)\b/.test(text)) return 'down';
-        if (/\btop\b/.test(text)) return 'top';
-        if (/\b(bottom|footer|end|last)\b/.test(text)) return 'bottom';
+        if (/\b(to\s+)?(the\s+)?(very\s+)?top\b/.test(text)) return 'top';
+        if (/\b(to\s+)?(the\s+)?(very\s+)?bottom\b/.test(text)) return 'bottom';
+        if (/\ball\s+the\s+way\s+up\b/.test(text)) return 'top';
+        if (/\ball\s+the\s+way\s+down\b/.test(text)) return 'bottom';
+        if (/\b(footer|end|last)\b/.test(text)) return 'bottom';
         return 'down';
       }
     },
