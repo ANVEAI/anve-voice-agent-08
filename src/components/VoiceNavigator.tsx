@@ -645,7 +645,6 @@ const VoiceNavigator = () => {
       } catch (error) {
         console.warn('Intent classifier failed, using fallback:', error);
       }
-      }
 
       // CLICK after scroll check
       {
