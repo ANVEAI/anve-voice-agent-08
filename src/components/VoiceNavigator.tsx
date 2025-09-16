@@ -613,7 +613,19 @@ const VoiceNavigator = () => {
         }
       }
 
-      // SCROLL intents take priority to avoid LLM misclassification
+      // Try LLM intent classification first
+      try {
+        const intentResult = await this.callIntentClassifier(transcript);
+        if (intentResult && intentResult.confidence >= 0.6) {
+          console.log('🧠 LLM Intent Result:', intentResult);
+          this.executeIntentAction(intentResult.intent, intentResult.action, transcript, intentResult.confidence);
+          return;
+        }
+      } catch (error) {
+        console.warn('Intent classifier failed, using fallback:', error);
+      }
+
+      // SCROLL first for specific header/footer navigation
       if (isScrollIntent(transcript)) {
         this.updateStatus(\`👤 Processing: "\${transcript}"\`);
         this.callScrollTool(transcript)
@@ -632,18 +644,6 @@ const VoiceNavigator = () => {
             this.updateStatus('❌ Scroll command failed');
           });
         return;
-      }
-
-      // Then try LLM intent classification
-      try {
-        const intentResult = await this.callIntentClassifier(transcript);
-        if (intentResult && intentResult.confidence >= 0.6) {
-          console.log('🧠 LLM Intent Result:', intentResult);
-          this.executeIntentAction(intentResult.intent, intentResult.action, transcript, intentResult.confidence);
-          return;
-        }
-      } catch (error) {
-        console.warn('Intent classifier failed, using fallback:', error);
       }
 
       // CLICK after scroll check
