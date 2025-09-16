@@ -58,7 +58,7 @@ setInterval(() => {
 /**
  * LLM-based Intent Classification
  */
-async function classifyWithLLM(transcript: string, sessionId: string) {
+async function classifyWithLLM(transcript: string, sessionId: string, currentUrl?: string) {
   const context = getSessionContext(sessionId);
   
   // Build context string for prompt
@@ -70,12 +70,41 @@ async function classifyWithLLM(transcript: string, sessionId: string) {
     });
     contextString += '\n\nUse this context to resolve pronouns like "it", "that", "this" in the current command.';
   }
+
+  // Add URL context
+  let urlContext = '';
+  if (currentUrl) {
+    const url = new URL(currentUrl);
+    const path = url.pathname;
+    urlContext = `\n\nCurrent page: ${path}`;
+    
+    if (path === '/pricing') {
+      urlContext += '\nUser is on the pricing page. "Back" or "go back" means navigate to home page "/" or click home links.';
+    } else if (path === '/waitlist') {  
+      urlContext += '\nUser is on the waitlist page. "Back" or "go back" means navigate to home page "/" or click home links.';
+    } else if (path === '/feedback') {
+      urlContext += '\nUser is on the feedback page. "Back" or "go back" means navigate to home page "/" or click home links.';
+    } else if (path === '/') {
+      urlContext += '\nUser is on the home page. "Back" or "go back" typically means scroll to top.';
+    }
+  }
   
-  const systemPrompt = `You are an intelligent voice command classifier for a web interface. Analyze the user's voice command and return a JSON response with the intended action.
+  const systemPrompt = `You are an intelligent voice command classifier for a voice-first web navigation app. Analyze the user's voice command and return a JSON response with the intended action.
+
+WEBSITE CONTEXT:
+- This is a voice navigation app with pages: Home (/), Pricing (/pricing), Waitlist (/waitlist), Feedback (/feedback)
+- Home page has a voice intro popup with "Got it!" button
+- Navigation between pages uses React Router
+
+SPECIAL PATTERNS:
+- "close popup/window/dialog" or "got it" → ALWAYS click "Got it!" or close buttons
+- "back/go back" on non-home pages → navigate to home page (click home links)
+- "back/go back" on home page → scroll to top
+- "dismiss/close/ok" with popup visible → click close/dismiss buttons
 
 Available actions:
 1. SCROLL: Navigate page (up/down/top/bottom)
-2. CLICK: Click buttons, links, tabs, modals
+2. CLICK: Click buttons, links, tabs, modals, navigation
 3. FILL: Fill forms, search, enter text
 4. TOGGLE: Toggle switches, checkboxes, radio buttons
 
@@ -95,18 +124,20 @@ Respond with ONLY a JSON object in this exact format:
 }
 
 Examples:
-- "go to the top" → {"type":"scroll","confidence":0.95,"action":{"kind":"scroll","direction":"top"}}
-- "click sign in button" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"sign in"}}
-- "search for laptops" → {"type":"fill","confidence":0.85,"action":{"kind":"fill","value":"laptops","fieldHint":"search"}}
-- "toggle dark mode" → {"type":"toggle","confidence":0.8,"action":{"kind":"toggle","target":"dark mode"}}
-- "turn it off" (after "toggle dark mode") → {"type":"toggle","confidence":0.85,"action":{"kind":"toggle","target":"dark mode"}}`;
+- "close popup" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Got it!"}}
+- "go back" (from /pricing) → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"home"}}
+- "take me back" (from /pricing) → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"home"}}
+- "go back" (from /) → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"top"}}
+- "dismiss" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Got it!"}}
+- "got it" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Got it!"}}`;
 
-  const userPrompt = `User command: "${transcript}"${contextString}`;
+  const userPrompt = `User command: "${transcript}"${contextString}${urlContext}`;
 
   try {
     console.log('🤖 Calling OpenRouter API for intent classification...');
     console.log('📝 Transcript:', transcript);
     console.log('🔗 Session ID:', sessionId);
+    console.log('🌐 Current URL:', currentUrl);
     console.log('🎯 Model:', MODEL_NAME);
     
     const response = await fetch(OPENROUTER_API_URL, {
@@ -173,7 +204,7 @@ Examples:
 /**
  * Pattern-based Intent Classification (Fallback)
  */
-function classifyWithPatterns(text: string, sessionId: string) {
+function classifyWithPatterns(text: string, sessionId: string, currentUrl?: string) {
   const context = getSessionContext(sessionId);
   
   // Handle pronouns using session context
@@ -183,6 +214,50 @@ function classifyWithPatterns(text: string, sessionId: string) {
       const lastToggle = context.lastActions.toggle;
       // Replace "it" with the last toggle target
       text = text.replace(/\bit\b/g, lastToggle.action.target || '');
+    }
+  }
+
+  // Add website-specific patterns
+  const urlPath = currentUrl ? new URL(currentUrl).pathname : '/';
+
+  // Handle popup/dialog closing patterns
+  if (/\b(close|dismiss|got it|ok)\b/.test(text) && text.match(/\b(popup|window|dialog|modal)\b/)) {
+    return {
+      type: 'click',
+      confidence: 0.9,
+      action: { kind: 'click', targetText: 'Got it!' },
+      metadata: { source: 'patterns', rule: 'popup-close' }
+    };
+  }
+
+  // Handle "got it" specifically
+  if (/\b(got it|gotit)\b/.test(text)) {
+    return {
+      type: 'click',
+      confidence: 0.95,
+      action: { kind: 'click', targetText: 'Got it!' },
+      metadata: { source: 'patterns', rule: 'got-it' }
+    };
+  }
+
+  // Handle back navigation based on current page
+  if (/\b(back|go back|take me back|previous|return)\b/.test(text)) {
+    if (urlPath !== '/') {
+      // On non-home pages, "back" means go home
+      return {
+        type: 'click',
+        confidence: 0.85,
+        action: { kind: 'click', targetText: 'home' },
+        metadata: { source: 'patterns', rule: 'back-to-home' }
+      };
+    } else {
+      // On home page, "back" means scroll to top
+      return {
+        type: 'scroll',
+        confidence: 0.8,
+        action: { kind: 'scroll', direction: 'top' },
+        metadata: { source: 'patterns', rule: 'back-to-top' }
+      };
     }
   }
 
@@ -210,7 +285,9 @@ function classifyWithPatterns(text: string, sessionId: string) {
         /\bopen\s+(.+)/,
         /\b(button|link|tab|modal|dialog)\b/,
         /\bsign\s+(in|up)\b/,
-        /\b(subscribe|contact|pricing|features|settings|analytics)\b/
+        /\b(subscribe|contact|pricing|features|settings|analytics)\b/,
+        /\b(close|dismiss|got it|ok)\b/,
+        /\b(home|homepage)\b/
       ],
       getTarget: (text: string) => {
         const clickMatch = text.match(/\b(click|press|tap|select|choose)\s+(on\s+)?(the\s+)?(.+)/);
@@ -219,6 +296,9 @@ function classifyWithPatterns(text: string, sessionId: string) {
         if (openMatch) return openMatch[1].trim();
         if (/\bsign\s+in\b/.test(text)) return 'sign in';
         if (/\bsign\s+up\b/.test(text)) return 'sign up';
+        if (/\b(close|dismiss|ok)\b/.test(text)) return 'Got it!';
+        if (/\b(got it|gotit)\b/.test(text)) return 'Got it!';
+        if (/\b(home|homepage)\b/.test(text)) return 'home';
         return null;
       }
     },
@@ -311,7 +391,7 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript, sessionId } = await req.json();
+    const { transcript, sessionId, currentUrl } = await req.json();
     
     if (!transcript) {
       return new Response(JSON.stringify({ error: "Transcript is required" }), {
@@ -321,9 +401,10 @@ serve(async (req) => {
     }
 
     console.log('🎤 Processing transcript:', transcript, 'for session:', sessionId);
+    console.log('🌐 Current URL:', currentUrl);
 
-    // First try LLM understanding with session context
-    const llmResult = await classifyWithLLM(transcript, sessionId);
+    // First try LLM understanding with session context and URL
+    const llmResult = await classifyWithLLM(transcript, sessionId, currentUrl);
     
     if (llmResult && llmResult.confidence >= 0.6) {
       // Store successful action in session memory
@@ -340,8 +421,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } else {
-      // Fallback to pattern matching with session context
-      const patternResult = classifyWithPatterns(transcript.toLowerCase().trim(), sessionId);
+      // Fallback to pattern matching with session context and URL
+      const patternResult = classifyWithPatterns(transcript.toLowerCase().trim(), sessionId, currentUrl);
       return new Response(JSON.stringify({
         transcript,
         intent: patternResult.type,
@@ -355,8 +436,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Intent classification error:', error);
     // Fallback to pattern matching on error with session context
-    const { transcript, sessionId } = await req.json().catch(() => ({ transcript: '', sessionId: '' }));
-    const patternResult = classifyWithPatterns(transcript.toLowerCase().trim(), sessionId);
+    const { transcript, sessionId, currentUrl } = await req.json().catch(() => ({ transcript: '', sessionId: '', currentUrl: '' }));
+    const patternResult = classifyWithPatterns(transcript.toLowerCase().trim(), sessionId, currentUrl);
     return new Response(JSON.stringify({
       transcript,
       intent: patternResult.type,

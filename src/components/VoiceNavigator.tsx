@@ -315,7 +315,7 @@ const VoiceNavigator = () => {
           body: JSON.stringify({
             transcript,
             sessionId: window.voiceNavigatorSessionId || 'default',
-            url: window.location.href
+            currentUrl: window.location.href
           })
         });
         if (!res.ok) {
@@ -845,7 +845,8 @@ const VoiceNavigator = () => {
               tagName: element.tagName,
               text: text.slice(0, 50),
               classes: element.className,
-              hasOnClick: !!element.onclick || element.hasAttribute('onclick')
+              hasOnClick: !!element.onclick || element.hasAttribute('onclick'),
+              inDialog: !!(element.closest('[role="dialog"]') || element.closest('[data-dialog]') || element.closest('.dialog') || element.closest('[data-state="open"]'))
             });
           }
           
@@ -913,6 +914,13 @@ const VoiceNavigator = () => {
         
         // For "got it" specifically, prioritize buttons with exact text match
         if (target === 'got it' || target === 'got it!') {
+          // Prioritize dialog buttons first
+          const aInDialog = a.closest('[role="dialog"]') || a.closest('[data-dialog]') || a.closest('.dialog');
+          const bInDialog = b.closest('[role="dialog"]') || b.closest('[data-dialog]') || b.closest('.dialog');
+          
+          if (aInDialog && !bInDialog) return -1;
+          if (bInDialog && !aInDialog) return 1;
+          
           const aIsGotItButton = a.tagName === 'BUTTON' && (aText === 'got it!' || aText === 'got it');
           const bIsGotItButton = b.tagName === 'BUTTON' && (bText === 'got it!' || bText === 'got it');
           
@@ -1029,7 +1037,7 @@ const VoiceNavigator = () => {
     });
 
     // For dialog buttons, don't scroll - just click directly
-    const isDialogButton = el.closest('[role="dialog"]') || el.closest('.dialog') || el.closest('[data-dialog]');
+    const isDialogButton = el.closest('[role="dialog"]') || el.closest('.dialog') || el.closest('[data-dialog]') || el.closest('[data-state="open"]');
     if (!isDialogButton) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
