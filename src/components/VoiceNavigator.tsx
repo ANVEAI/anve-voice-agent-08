@@ -1084,10 +1084,18 @@ const VoiceNavigator = () => {
     return '';
   }
 
+  function canonicalizeHint(hint) {
+    const h = (hint || '').toLowerCase().trim();
+    if (h === 'title') return 'subject';
+    if (h === 'e-mail' || h === 'mail') return 'email';
+    if (h === 'msg') return 'message';
+    return h;
+  }
+
   function fieldScore(el, hint) {
     const base = visibleScore(el);
     if (!hint) return base;
-    const h = hint.toLowerCase();
+    const h = canonicalizeHint(hint);
     let score = base;
 
     const id = (el.id || '').toLowerCase();
@@ -1143,7 +1151,7 @@ const VoiceNavigator = () => {
     }
 
     // Negative scoring for obvious mismatches
-    if ((h === 'name' || h === 'email' || h === 'subject' || h === 'phone') && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
+    if ((h === 'name' || h === 'email' || h === 'subject' || h === 'phone') && [id,name,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
       score -= 20000;
     }
 
@@ -1156,7 +1164,7 @@ const VoiceNavigator = () => {
     const m = t.match(/\b(in|into)\s+(the\s+)?([a-z0-9 \-_]+?)\s+(field|box|input)\b/);
     if (m) return (m[3] || '').trim();
 
-    const hints = ['email','name','subject','description','message','search','phone','address'];
+    const hints = ['email','name','subject','title','description','message','search','phone','address'];
     for (const h of hints) {
       if (t.includes(h)) return h;
     }
@@ -1164,6 +1172,8 @@ const VoiceNavigator = () => {
   }
 
   function findFillTargets({ selector, fieldHint, transcript }) {
+    // Canonicalize hint early (e.g., title -> subject)
+    fieldHint = canonicalizeHint(fieldHint);
     let candidates = [];
     if (selector) {
       try { candidates = Array.from(document.querySelectorAll(selector)); } catch {}
