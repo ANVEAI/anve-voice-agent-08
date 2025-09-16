@@ -675,7 +675,7 @@ const VoiceNavigator = () => {
               if (result?.action?.kind === 'fill') {
                 const act = { ...result.action };
                 console.log('[fill] action used', JSON.stringify(act, null, 2));
-                const r = fillField(act);
+                const r = fillField({ ...act, transcript });
                 this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
               } else {
                 this.updateStatus('ℹ️ No fill action returned');
@@ -1097,16 +1097,25 @@ const VoiceNavigator = () => {
     const lbl = findLabelTextFor(el).toLowerCase();
     const isTextarea = el.tagName.toLowerCase() === 'textarea';
     const isInput = el.tagName.toLowerCase() === 'input';
+    const type = (el.getAttribute('type') || '').toLowerCase();
 
-    // Field type priority bonuses/penalties
-    if (h === 'name' || h === 'email' || h === 'phone' || h === 'search') {
-      // For specific single-value fields, prefer input over textarea
-      if (isInput) score += 3000;
-      if (isTextarea) score -= 2000;
-    } else if (h === 'message' || h === 'description') {
-      // For long-form content, prefer textarea
-      if (isTextarea) score += 1000;
+    // Field type priority bonuses/penalties (strong bias)
+    const singleValueHints = ['name','email','phone','subject','search','title'];
+    const longTextHints = ['message','description','comments','feedback','details','note'];
+
+    if (singleValueHints.includes(h)) {
+      if (isInput) score += 20000; // strong bias to inputs
+      if (isTextarea) score -= 100000; // very strong penalty to avoid textarea
     }
+    if (longTextHints.includes(h)) {
+      if (isTextarea) score += 15000;
+      if (isInput) score -= 2000;
+    }
+
+    // Fine-grained type boosts
+    if (h === 'email' && type === 'email') score += 12000;
+    if (h === 'search' && (type === 'search' || ph.includes('search'))) score += 8000;
+    if ((h === 'name' || h === 'subject' || h === 'title') && (type === 'text' || type === '')) score += 3000;
 
     const bump = (txt, w) => { if (txt.includes(h)) score += w; };
     bump(id, 5000);
@@ -1134,17 +1143,27 @@ const VoiceNavigator = () => {
     }
 
     // Negative scoring for obvious mismatches
-    if (h === 'name' && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
-      score -= 5000;
-    }
-    if (h === 'email' && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
-      score -= 5000;
+    if ((h === 'name' || h === 'email' || h === 'subject' || h === 'phone') && [id,name,ph,aria,lbl].some(txt => txt.includes('description') || txt.includes('message') || txt.includes('details'))) {
+      score -= 20000;
     }
 
     return score;
   }
 
-  function findFillTargets({ selector, fieldHint }) {
+  function inferHintFromTranscript(transcript) {
+    const t = (transcript || '').toLowerCase();
+    // "in/into the <hint> field/box/input" pattern
+    const m = t.match(/\b(in|into)\s+(the\s+)?([a-z0-9 \-_]+?)\s+(field|box|input)\b/);
+    if (m) return (m[3] || '').trim();
+
+    const hints = ['email','name','subject','description','message','search','phone','address'];
+    for (const h of hints) {
+      if (t.includes(h)) return h;
+    }
+    return '';
+  }
+
+  function findFillTargets({ selector, fieldHint, transcript }) {
     let candidates = [];
     if (selector) {
       try { candidates = Array.from(document.querySelectorAll(selector)); } catch {}
@@ -1165,6 +1184,15 @@ const VoiceNavigator = () => {
     });
     // Prefer enabled, not readonly
     candidates = candidates.filter(el => !el.disabled && !el.readOnly);
+
+    // If no explicit hint, try to infer from transcript locally
+    if (!fieldHint && transcript) {
+      const inferred = inferHintFromTranscript(transcript);
+      if (inferred) {
+        fieldHint = inferred;
+        console.log('[debug] inferred fieldHint from transcript:', fieldHint);
+      }
+    }
 
     if (fieldHint) {
       candidates.sort((a,b) => fieldScore(b, fieldHint) - fieldScore(a, fieldHint));
@@ -1223,8 +1251,8 @@ const VoiceNavigator = () => {
     return false;
   }
 
-  function fillField({ value, fieldHint, selector, submit }) {
-    const list = findFillTargets({ selector, fieldHint });
+  function fillField({ value, fieldHint, selector, submit, transcript }) {
+    const list = findFillTargets({ selector, fieldHint, transcript });
     const el = list[0];
     if (!el) return { ok:false };
 
