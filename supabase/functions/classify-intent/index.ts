@@ -93,9 +93,10 @@ async function classifyWithLLM(transcript: string, sessionId: string, currentUrl
 
 WEBSITE CONTEXT:
 - This is a voice navigation app with pages: Home (/), Pricing (/pricing), Waitlist (/waitlist), Feedback (/feedback)
-- Home page has a voice intro popup with "Got it!" button
+- Home page has a voice intro popup with "Got it!" button and a "Watch Demo" link
 - Navigation between pages uses React Router
 - The "resources" or "feedback" page is at /feedback (for contact/help/support/resources)
+- Demo video is available on home page via "Watch Demo" button
 
 PAGE NAVIGATION SYNONYMS (CRITICAL - These should ALL navigate to pages, NOT scroll):
 - "resources/resources page/resources section/feedback/contact/help/support" → navigate to /feedback 
@@ -118,6 +119,8 @@ SPECIAL PATTERNS:
 - "back/go back" on non-home pages → navigate to home page (click home links)
 - "back/go back" on home page → scroll to top
 - "dismiss/close/ok" with popup visible → click close/dismiss buttons
+- "watch demo/show demo/play demo/demo" → ALWAYS click "Watch Demo" button
+- "see demo/view demo/open demo" → ALWAYS click "Watch Demo" button
 
 Available actions:
 1. SCROLL: Navigate page (up/down/top/bottom)
@@ -147,6 +150,13 @@ Examples:
 - "go back" (from /) → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"top"}}
 - "dismiss" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Got it!"}}
 - "got it" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Got it!"}}
+- "watch demo" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "show demo" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "play demo" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "demo" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "see demo" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "view demo" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Watch Demo"}}
+- "open demo" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Watch Demo"}}
 
 NAVIGATION EXAMPLES (CRITICAL - All navigate to pages):
 - "take me to resources" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
@@ -288,6 +298,16 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
       confidence: 0.95,
       action: { kind: 'click', targetText: 'Got it!' },
       metadata: { source: 'patterns', rule: 'got-it' }
+    };
+  }
+
+  // Handle demo commands
+  if (/\b(watch|show|play|see|view|open)?\s*(demo|demonstration)\b/i.test(text) || /^demo$/i.test(text.trim())) {
+    return {
+      type: 'click',
+      confidence: 0.95,
+      action: { kind: 'click', targetText: 'Watch Demo' },
+      metadata: { source: 'patterns', rule: 'demo' }
     };
   }
 
