@@ -524,9 +524,10 @@ const VoiceNavigator = () => {
     // Check if this is a direct navigation command that should bypass the click tool
     isDirectNavigation(transcript) {
       const navPatterns = [
-        /\\b(go to|goto|take me to|navigate to)\\s+(home|pricing|features|about|waitlist)\\b/i,
-        /\\b(home|pricing|features|about|waitlist)\\s*$/i, // Just the page name at the end
-        /\\bback to\\s+(home|pricing|features|about|waitlist)\\b/i
+        /\b(go to|goto|take me to|navigate to|show me)\s+(home|homepage|pricing|plans|features|about|waitlist|signup|sign\s+up|resources|feedback|contact|help|support)(\s+(page|section))?\b/i,
+        /\b(home|homepage|pricing|plans|features|about|waitlist|signup|sign\s+up|resources|feedback|contact|help|support)\s*(page|section)?\s*$/i, // Just the page name at the end
+        /\bback to\s+(home|homepage|pricing|plans|features|about|waitlist|signup|sign\s+up|resources|feedback|contact|help|support)\b/i,
+        /\b(resources|feedback|contact|help|support|pricing|plans|waitlist|signup|home|homepage)(?!\s+(up|down|here|there))\b/i // Match page names but not scroll directions
       ];
       
       return navPatterns.some(pattern => pattern.test(transcript));
@@ -534,18 +535,27 @@ const VoiceNavigator = () => {
 
     // Extract navigation target from transcript
     extractNavTarget(transcript) {
-      const matches = transcript.match(/\\b(home|pricing|features|about|waitlist)\\b/i);
-      return matches ? matches[1].toLowerCase() : null;
+      const matches = transcript.match(/\b(home|homepage|pricing|plans|features|about|waitlist|signup|sign\s+up|resources|feedback|contact|help|support)\b/i);
+      return matches ? matches[1].toLowerCase().replace(/\s+/g, '') : null;
     }
 
     // Handle direct navigation
     handleDirectNavigation(target) {
       const navMap = {
         'home': { selector: 'a[href="/"], a[href="#"]', text: 'Home' },
+        'homepage': { selector: 'a[href="/"], a[href="#"]', text: 'Home' },
         'pricing': { selector: 'a[href="/pricing"]', text: 'Pricing' },
+        'plans': { selector: 'a[href="/pricing"]', text: 'Pricing' },
         'features': { selector: 'a[href="#features"]', text: 'Features' },
         'about': { selector: 'a[href="#about"]', text: 'About' },
-        'waitlist': { selector: 'a[href="/waitlist"]', text: 'Join the Waitlist' }
+        'waitlist': { selector: 'a[href="/waitlist"]', text: 'Join the Waitlist' },
+        'signup': { selector: 'a[href="/waitlist"]', text: 'Join the Waitlist' },
+        'signUp': { selector: 'a[href="/waitlist"]', text: 'Join the Waitlist' },
+        'resources': { selector: 'a[href="/feedback"]', text: 'Feedback' },
+        'feedback': { selector: 'a[href="/feedback"]', text: 'Feedback' },
+        'contact': { selector: 'a[href="/feedback"]', text: 'Feedback' },
+        'help': { selector: 'a[href="/feedback"]', text: 'Feedback' },
+        'support': { selector: 'a[href="/feedback"]', text: 'Feedback' }
       };
       
       const nav = navMap[target];

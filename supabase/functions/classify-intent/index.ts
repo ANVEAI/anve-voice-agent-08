@@ -95,6 +95,23 @@ WEBSITE CONTEXT:
 - This is a voice navigation app with pages: Home (/), Pricing (/pricing), Waitlist (/waitlist), Feedback (/feedback)
 - Home page has a voice intro popup with "Got it!" button
 - Navigation between pages uses React Router
+- The "resources" or "feedback" page is at /feedback (for contact/help/support/resources)
+
+PAGE NAVIGATION SYNONYMS (CRITICAL - These should ALL navigate to pages, NOT scroll):
+- "resources/resources page/resources section/feedback/contact/help/support" → navigate to /feedback 
+- "pricing/pricing page/pricing section/plans/plans page" → navigate to /pricing
+- "waitlist/waitlist page/join waitlist/sign up" → navigate to /waitlist  
+- "home/homepage/main page/home page" → navigate to /
+
+NAVIGATION vs SCROLL RULES (CRITICAL):
+- "take me to [page]" → NAVIGATE to page (click navigation links)
+- "go to [page]" → NAVIGATE to page (click navigation links) 
+- "take me to [page] section" → NAVIGATE to page (NOT scroll - section means the page)
+- "go to [page] section" → NAVIGATE to page (NOT scroll - section means the page)
+- "show me [page]" → NAVIGATE to page (click navigation links)
+- "[page] section" → NAVIGATE to page (NOT scroll)
+- "scroll to [something]" → SCROLL on current page
+- "show me [content] section" (like "about section") → SCROLL on current page
 
 SPECIAL PATTERNS:
 - "close popup/window/dialog" or "got it" → ALWAYS click "Got it!" or close buttons
@@ -129,7 +146,24 @@ Examples:
 - "take me back" (from /pricing) → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"home"}}
 - "go back" (from /) → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"top"}}
 - "dismiss" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"Got it!"}}
-- "got it" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Got it!"}}`;
+- "got it" → {"type":"click","confidence":0.95,"action":{"kind":"click","targetText":"Got it!"}}
+
+NAVIGATION EXAMPLES (CRITICAL - All navigate to pages):
+- "take me to resources" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
+- "go to resources" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
+- "take me to resources section" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
+- "resources section" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
+- "show me resources" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"feedback"}}
+- "take me to pricing" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"pricing"}}
+- "pricing section" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"pricing"}}
+- "go to waitlist" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"waitlist"}}
+- "join waitlist" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"waitlist"}}
+- "take me to home" → {"type":"click","confidence":0.9,"action":{"kind":"click","targetText":"home"}}
+
+SCROLL EXAMPLES (Only for content sections on same page):
+- "scroll to about section" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"down"}}
+- "show me the footer" → {"type":"scroll","confidence":0.8,"action":{"kind":"scroll","direction":"bottom"}}
+- "scroll down" → {"type":"scroll","confidence":0.9,"action":{"kind":"scroll","direction":"down"}}`;
 
   const userPrompt = `User command: "${transcript}"${contextString}${urlContext}`;
 
@@ -261,6 +295,52 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
     }
   }
 
+  // Page alias mapping
+  const pageAliases = {
+    'resources': 'feedback',
+    'feedback': 'feedback', 
+    'contact': 'feedback',
+    'help': 'feedback',
+    'support': 'feedback',
+    'pricing': 'pricing',
+    'plans': 'pricing',
+    'waitlist': 'waitlist',
+    'signup': 'waitlist',
+    'sign up': 'waitlist',
+    'home': 'home',
+    'homepage': 'home',
+    'main': 'home'
+  };
+
+  // Check for navigation patterns FIRST (before scroll)
+  const navPatterns = [
+    /\b(take\s+(me\s+)?to|go\s+to|show\s+(me\s+)?|navigate\s+to)\s+(the\s+)?(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up|home|homepage|main)(\s+(page|section))?\b/,
+    /\b(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up|home|homepage|main)\s+(page|section)\b/,
+    /\b(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up)(?!\s+(up|down|here|there))\b/
+  ];
+
+  for (const pattern of navPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      console.log('🎯 Navigation pattern matched:', pattern, 'Text:', text, 'Match:', match[0]);
+      // Extract the page name
+      const pageMatch = match[0].match(/\b(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up|home|homepage|main)\b/);
+      if (pageMatch) {
+        const pageName = pageMatch[1].replace(/s$/, '').replace(/\s+/g, ' '); // Remove plural 's' and normalize spaces
+        const targetPage = pageAliases[pageName.toLowerCase()] || pageName.toLowerCase();
+        
+        console.log('📍 Page navigation detected - Page:', pageName, '→ Target:', targetPage);
+        
+        return {
+          type: 'click',
+          confidence: 0.9,
+          action: { kind: 'click', targetText: targetPage },
+          metadata: { source: 'patterns', rule: 'navigation' }
+        };
+      }
+    }
+  }
+
   const patterns = {
     scroll: {
       patterns: [
@@ -269,6 +349,7 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
         /\b(go|move|jump)\s+(to\s+)?(top|bottom|up|down)\b/,
         /\b(go|take|bring|navigate)\s+(me\s+)?to\s+(the\s+)?(top|bottom|footer|header|end|beginning)\b/,
         /\b(show|display)\s+(me\s+)?(the\s+)?(footer|header|top|bottom)\b/,
+        /\bscroll\s+to\s+.+/,
         /\b(last|final)\s+section\b/
       ],
       getDirection: (text: string) => {
@@ -285,7 +366,7 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
         /\bopen\s+(.+)/,
         /\b(button|link|tab|modal|dialog)\b/,
         /\bsign\s+(in|up)\b/,
-        /\b(subscribe|contact|pricing|features|settings|analytics)\b/,
+        /\b(subscribe|contact|features|settings|analytics)\b/,
         /\b(close|dismiss|got it|ok)\b/,
         /\b(home|homepage)\b/
       ],
