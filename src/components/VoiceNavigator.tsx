@@ -285,7 +285,10 @@ const VoiceNavigator = () => {
       try {
         const res = await fetch(\`\${BACKEND_URL}/normalize-content\`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2x5cHp2Znh1aWlxa213enlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0ODk1MjgsImV4cCI6MjA3MzA2NTUyOH0.B38gApkvcjYpumFqpX_L6epFIqpZ61-rt_4lYaCXLzI'
+          },
           body: JSON.stringify({
             rawValue,
             fieldHint,
