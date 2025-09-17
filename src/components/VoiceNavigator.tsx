@@ -281,6 +281,29 @@ const VoiceNavigator = () => {
       }
     }
 
+    async callNormalizeContent(rawValue, fieldHint, transcript) {
+      try {
+        const res = await fetch(\`\${BACKEND_URL}/normalize-content\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawValue,
+            fieldHint,
+            transcript
+          })
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.warn('Normalize content HTTP error', res.status, text);
+          return null;
+        }
+        return await res.json();
+      } catch (e) {
+        console.error('callNormalizeContent error', e);
+        return null;
+      }
+    }
+
     async callFillTool(transcript) {
       try {
         const res = await fetch(\`\${BACKEND_URL}/tools-fill\`, {
@@ -353,8 +376,7 @@ const VoiceNavigator = () => {
         case 'fill':
           this.updateStatus(\`👤 Fill (\${Math.round(confidence * 100)}%): "\${transcript}"\`);
           if (action.value) {
-            const r = fillField(action);
-            this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
+            this.processFillWithNormalization(action, transcript);
           } else {
             this.updateStatus('⚠️ No fill value identified');
           }
@@ -446,6 +468,42 @@ const VoiceNavigator = () => {
       this.emailBufTimer = setTimeout(() => this.flushEmailBuffer('timeout'), 1200);
     }
 
+    async processFillWithNormalization(action, transcript) {
+      try {
+        this.updateStatus('🔄 Normalizing content...');
+        
+        // Call normalization API
+        const normalizationResult = await this.callNormalizeContent(
+          action.value, 
+          action.fieldHint || 'text', 
+          transcript
+        );
+        
+        if (normalizationResult && normalizationResult.normalizedValue) {
+          const normalizedAction = { 
+            ...action, 
+            value: normalizationResult.normalizedValue 
+          };
+          
+          if (normalizationResult.changed) {
+            this.updateStatus(\`✨ Corrected: "\${action.value}" → "\${normalizationResult.normalizedValue}"\`);
+          }
+          
+          const r = fillField(normalizedAction);
+          this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
+        } else {
+          // Fallback to original if normalization fails
+          const r = fillField(action);
+          this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
+        }
+      } catch (error) {
+        console.error('processFillWithNormalization error:', error);
+        // Fallback to original if error occurs
+        const r = fillField(action);
+        this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
+      }
+    }
+
     flushEmailBuffer(reason) {
       clearTimeout(this.emailBufTimer);
       this.emailBufTimer = null;
@@ -463,20 +521,8 @@ const VoiceNavigator = () => {
             // Normalize hint to email when emailish
             if (!act.fieldHint || /^(mail)$/i.test(act.fieldHint)) act.fieldHint = 'email';
 
-            // LAST-RESORT FALLBACK only if server didn't provide a usable email
-            const emailRe = /^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/i;
-            const serverValue = (act.value ?? '').trim();
-            if ((!serverValue || !emailRe.test(serverValue)) && isEmailish(phrase)) {
-              const fallback = fallbackNormalizeSpokenEmail(phrase);
-              if (fallback && emailRe.test(fallback)) {
-                console.log('[fill] applying fallback normalization →', fallback);
-                act.value = fallback;
-              }
-            }
-
-            console.log('[fill] action used', JSON.stringify(act, null, 2));
-            const r = fillField(act);
-            this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
+            // Process with normalization
+            this.processFillWithNormalization(act, phrase);
           } else {
             this.updateStatus('ℹ️ No fill action returned');
           }
