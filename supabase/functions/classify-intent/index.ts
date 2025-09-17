@@ -91,6 +91,20 @@ async function classifyWithLLM(transcript: string, sessionId: string, currentUrl
   
   const systemPrompt = `You are an intelligent voice command classifier for a voice-first web navigation app. Analyze the user's voice command and return a JSON response with the intended action.
 
+CRITICAL: SCROLL COMMANDS RECOGNITION
+These patterns MUST be recognized as scroll actions with HIGH confidence (0.9+):
+- "scroll to bottom" / "scroll to the bottom" / "scroll to the very bottom" → scroll bottom
+- "scroll to top" / "scroll to the top" / "scroll to the very top" → scroll top  
+- "scroll all the way down" / "scroll all the way up" → scroll bottom/top
+- "go to bottom" / "go to the bottom" / "go to the very bottom" → scroll bottom
+- "go to top" / "go to the top" / "go to the very top" → scroll top
+- "take me to bottom" / "take me to the bottom" / "take me to the very bottom" → scroll bottom
+- "take me to top" / "take me to the top" / "take me to the very top" → scroll top
+- "show me the bottom" / "show me the footer" → scroll bottom
+- "show me the top" / "show me the header" → scroll top
+- "page down" / "page up" → scroll down/up
+- "scroll down" / "scroll up" → scroll down/up
+
 WEBSITE CONTEXT:
 - This is a voice navigation app with pages: Home (/), Pricing (/pricing), Waitlist (/waitlist), Feedback (/feedback)
 - Home page has a voice intro popup with "Got it!" button and a "Watch Demo" link
@@ -200,6 +214,8 @@ SCROLL EXAMPLES (Only for content sections on same page):
     console.log('🔗 Session ID:', sessionId);
     console.log('🌐 Current URL:', currentUrl);
     console.log('🎯 Model:', MODEL_NAME);
+    console.log('📄 System Prompt Length:', systemPrompt.length);
+    console.log('📄 User Prompt:', userPrompt);
     
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
@@ -246,6 +262,18 @@ SCROLL EXAMPLES (Only for content sections on same page):
       try {
         const result = JSON.parse(responseText);
         console.log('✅ Parsed LLM Result:', JSON.stringify(result, null, 2));
+        
+        // Special debugging for scroll commands
+        if (transcript.toLowerCase().includes('scroll') || 
+            transcript.toLowerCase().includes('bottom') || 
+            transcript.toLowerCase().includes('top')) {
+          console.log('🔍 SCROLL DEBUG - Input:', transcript);
+          console.log('🔍 SCROLL DEBUG - Result type:', result.type);
+          console.log('🔍 SCROLL DEBUG - Confidence:', result.confidence);
+          console.log('🔍 SCROLL DEBUG - Action:', JSON.stringify(result.action));
+          console.log('🔍 SCROLL DEBUG - Reasoning:', result.reasoning);
+        }
+        
         return result;
       } catch (parseError) {
         console.error('❌ Failed to parse OpenRouter JSON response:', parseError);
@@ -529,9 +557,24 @@ serve(async (req) => {
     // First try LLM understanding with session context and URL
     const llmResult = await classifyWithLLM(transcript, sessionId, currentUrl);
     
-    if (llmResult && llmResult.confidence >= 0.6) {
+    // For scroll commands, accept lower confidence threshold
+    const isScrollCommand = transcript.toLowerCase().includes('scroll') || 
+                           transcript.toLowerCase().includes('bottom') || 
+                           transcript.toLowerCase().includes('top');
+    const confidenceThreshold = isScrollCommand ? 0.5 : 0.6;
+    
+    console.log('🎯 LLM Result Analysis:');
+    console.log('   - Type:', llmResult?.type);
+    console.log('   - Confidence:', llmResult?.confidence);
+    console.log('   - Is Scroll Command:', isScrollCommand);
+    console.log('   - Confidence Threshold:', confidenceThreshold);
+    console.log('   - Will Use LLM:', llmResult && llmResult.confidence >= confidenceThreshold);
+    
+    if (llmResult && llmResult.confidence >= confidenceThreshold) {
       // Store successful action in session memory
       updateSessionContext(sessionId, transcript, llmResult.action);
+      
+      console.log('✅ Using LLM result with confidence:', llmResult.confidence);
       
       // Use LLM result if confident
       return new Response(JSON.stringify({
@@ -545,13 +588,22 @@ serve(async (req) => {
       });
     } else {
       // Fallback to pattern matching with session context and URL
+      console.log('🔄 Falling back to pattern matching...');
+      console.log('   - LLM Result:', llmResult ? JSON.stringify(llmResult, null, 2) : 'null');
+      
       const patternResult = classifyWithPatterns(transcript.toLowerCase().trim(), sessionId, currentUrl);
+      
+      console.log('🎯 Pattern Result:', JSON.stringify(patternResult, null, 2));
+      
+      // Store action in session memory for patterns too
+      updateSessionContext(sessionId, transcript, patternResult.action);
+      
       return new Response(JSON.stringify({
         transcript,
         intent: patternResult.type,
         confidence: patternResult.confidence,
         action: patternResult.action,
-        metadata: { ...patternResult.metadata, source: 'patterns', llmFallback: true }
+        metadata: { ...patternResult.metadata, source: 'patterns', llmFallback: true, llmResult: llmResult }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
