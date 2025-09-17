@@ -8,23 +8,25 @@ const corsHeaders = {
 
 // LLM Content Processing
 async function processContentWithLLM(rawValue: string, fieldHint: string, transcript: string): Promise<string> {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    console.log('[fill] No OpenAI API key, falling back to rule-based processing');
+  const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterApiKey) {
+    console.log('[fill] No OpenRouter API key, falling back to rule-based processing');
     return rawValue;
   }
 
   try {
     console.log('[fill] Processing content with LLM:', { rawValue, fieldHint, transcript });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://anvevoice.app',
+        'X-Title': 'Voice Content Processing',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           {
             role: 'system',
@@ -60,12 +62,12 @@ Please process this value for the ${fieldHint} field:`
           }
         ],
         max_tokens: 150,
-        temperature: 0.1,
+        temperature: 0.2,
       }),
     });
 
     if (!response.ok) {
-      console.error('[fill] OpenAI API error:', await response.text());
+      console.error('[fill] OpenRouter API error:', await response.text());
       return rawValue;
     }
 
