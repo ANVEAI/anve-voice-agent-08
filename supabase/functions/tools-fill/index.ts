@@ -1,9 +1,85 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// LLM Content Processing
+async function processContentWithLLM(rawValue: string, fieldHint: string, transcript: string): Promise<string> {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    console.log('[fill] No OpenAI API key, falling back to rule-based processing');
+    return rawValue;
+  }
+
+  try {
+    console.log('[fill] Processing content with LLM:', { rawValue, fieldHint, transcript });
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a voice transcription content processor. Your job is to take transcribed voice text and convert it to proper format for form fields.
+
+IMPORTANT: Only return the corrected value, nothing else. No explanations, no quotes, just the clean value.
+
+For EMAIL fields:
+- Convert spoken format to proper email: "john at gmail dot com" → "john@gmail.com"
+- Fix common speech-to-text errors
+- Handle variations like "g mail", "out look", "hot mail", "y ahoo"
+- Convert "dot" to ".", "at" to "@"
+
+For PHONE fields:
+- Format phone numbers properly
+- Convert spoken numbers to digits
+
+For NAME fields:
+- Proper capitalization
+- Fix common name transcription errors
+
+For other fields:
+- Clean up obvious transcription errors
+- Maintain original intent but improve formatting`
+          },
+          {
+            role: 'user',
+            content: `Field type: ${fieldHint}
+Original transcript: "${transcript}"
+Extracted value: "${rawValue}"
+
+Please process this value for the ${fieldHint} field:`
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[fill] OpenAI API error:', await response.text());
+      return rawValue;
+    }
+
+    const data = await response.json();
+    const processedValue = data.choices[0].message.content.trim();
+    
+    console.log('[fill] LLM processed value:', { original: rawValue, processed: processedValue });
+    return processedValue;
+
+  } catch (error) {
+    console.error('[fill] Error processing content with LLM:', error);
+    return rawValue;
+  }
+}
 
 // Constants
 const FIELD_HINTS = [
@@ -283,8 +359,25 @@ serve(async (req) => {
 
     if (emailContext) {
       value = stripEmailLeadIns(value, t);
-      value = normalizeSpokenEmailServer(value);
+      
+      // Try LLM processing first, fallback to rule-based
+      const llmProcessed = await processContentWithLLM(value, 'email', transcript);
+      if (llmProcessed && llmProcessed !== value) {
+        console.log('[fill] Using LLM processed email:', { original: value, processed: llmProcessed });
+        value = llmProcessed;
+      } else {
+        // Fallback to existing rule-based processing
+        value = normalizeSpokenEmailServer(value);
+      }
+      
       if (!fieldHint) fieldHint = 'email';
+    } else if (fieldHint && ['name', 'phone', 'address'].includes(fieldHint.toLowerCase())) {
+      // Process other structured fields with LLM
+      const llmProcessed = await processContentWithLLM(value, fieldHint, transcript);
+      if (llmProcessed && llmProcessed !== value) {
+        console.log('[fill] Using LLM processed content:', { fieldHint, original: value, processed: llmProcessed });
+        value = llmProcessed;
+      }
     }
 
     // Submit intent
