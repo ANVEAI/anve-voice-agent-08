@@ -30,51 +30,79 @@ async function processContentWithLLM(rawValue: string, fieldHint: string, transc
         messages: [
           {
             role: 'system',
-            content: `You are a voice transcription content processor. Your job is to take transcribed voice text and convert it to proper format for form fields.
+            content: `You are a content normalizer that fixes voice-transcribed text for form fields.
 
-IMPORTANT: Only return the corrected value, nothing else. No explanations, no quotes, just the clean value.
+CRITICAL: Return ONLY the corrected content, nothing else. No explanations, no quotes, no markdown.
 
-For EMAIL fields:
-- Convert spoken format to proper email: "john at gmail dot com" → "john@gmail.com"
-- Fix common speech-to-text errors
-- Handle variations like "g mail", "out look", "hot mail", "y ahoo"
-- Convert "dot" to ".", "at" to "@"
+Common voice transcription issues to fix:
+- "at" or "at the rate" → "@" in emails
+- "dot" or "period" → "." in emails and domains
+- "dash" or "hyphen" → "-"
+- "underscore" or "under score" → "_"
+- Remove spaces in emails, phone numbers, and structured data
+- Fix misspelled domains: "g mail"→"gmail", "out look"→"outlook", "hot mail"→"hotmail", "y ahoo"→"yahoo"
+- Convert spoken numbers to digits for phone fields
 
-For PHONE fields:
-- Format phone numbers properly
-- Convert spoken numbers to digits
+Field types and expected formats:
+- EMAIL: user@domain.com (fix spoken email patterns)
+- PHONE: clean digits with optional formatting (convert spoken numbers)
+- NAME: proper capitalization (first letter of each word)
+- SEARCH: clean search query (remove filler words like "um", "uh")
+- ADDRESS: proper formatting with commas and spaces
+- MESSAGE: natural text (minimal changes, fix obvious errors only)
+- COMPANY: proper business name capitalization
+- SUBJECT/TITLE: sentence case, proper punctuation
 
-For NAME fields:
-- Proper capitalization
-- Fix common name transcription errors
+Examples:
+- "john at gmail dot com" → "john@gmail.com"
+- "five five five one two three four" → "5551234"
+- "john smith" → "John Smith"
+- "search for um laptops under five hundred" → "laptops under 500"
 
-For other fields:
-- Clean up obvious transcription errors
-- Maintain original intent but improve formatting`
+Process the content but preserve the original meaning and intent.`
           },
           {
             role: 'user',
-            content: `Field type: ${fieldHint}
+            content: `Field type: ${fieldHint.toUpperCase()}
 Original transcript: "${transcript}"
 Extracted value: "${rawValue}"
 
-Please process this value for the ${fieldHint} field:`
+Normalize this ${fieldHint} content:`
           }
         ],
-        max_tokens: 150,
-        temperature: 0.2,
+        max_tokens: 200,
+        temperature: 0.1,
       }),
     });
 
     if (!response.ok) {
-      console.error('[fill] OpenRouter API error:', await response.text());
+      const errorText = await response.text();
+      console.error('[fill] OpenRouter API error:', errorText);
       return rawValue;
     }
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('[fill] Invalid LLM response structure:', data);
+      return rawValue;
+    }
+
     const processedValue = data.choices[0].message.content.trim();
     
-    console.log('[fill] LLM processed value:', { original: rawValue, processed: processedValue });
+    // Validation: ensure processed value isn't empty or just punctuation
+    if (!processedValue || processedValue.length < 1 || /^[^a-zA-Z0-9@._-]+$/.test(processedValue)) {
+      console.log('[fill] LLM returned invalid result, using original');
+      return rawValue;
+    }
+    
+    console.log('[fill] LLM processed value:', { 
+      fieldType: fieldHint,
+      original: rawValue, 
+      processed: processedValue,
+      transcript: transcript.substring(0, 50) + (transcript.length > 50 ? '...' : '')
+    });
+    
     return processedValue;
 
   } catch (error) {
@@ -373,12 +401,35 @@ serve(async (req) => {
       }
       
       if (!fieldHint) fieldHint = 'email';
-    } else if (fieldHint && ['name', 'phone', 'address'].includes(fieldHint.toLowerCase())) {
-      // Process other structured fields with LLM
+    } else if (fieldHint && ['name', 'phone', 'address', 'search', 'company', 'subject', 'title', 'message'].includes(fieldHint.toLowerCase())) {
+      // Process structured fields with LLM
       const llmProcessed = await processContentWithLLM(value, fieldHint, transcript);
       if (llmProcessed && llmProcessed !== value) {
         console.log('[fill] Using LLM processed content:', { fieldHint, original: value, processed: llmProcessed });
         value = llmProcessed;
+      }
+    } else if (value && (
+      // Auto-detect field types that would benefit from LLM processing
+      /\b(phone|mobile|tel)\b/i.test(t) ||
+      /\b(name|first|last)\b/i.test(t) ||
+      /\b(search|find|look)\b/i.test(t) ||
+      /\b(address|street|city)\b/i.test(t) ||
+      /\b(company|organization)\b/i.test(t) ||
+      /\b(subject|title|heading)\b/i.test(t)
+    )) {
+      // Auto-detect field type and process
+      const detectedType = /\b(phone|mobile|tel)\b/i.test(t) ? 'phone' :
+                          /\b(name|first|last)\b/i.test(t) ? 'name' :
+                          /\b(search|find|look)\b/i.test(t) ? 'search' :
+                          /\b(address|street|city)\b/i.test(t) ? 'address' :
+                          /\b(company|organization)\b/i.test(t) ? 'company' :
+                          /\b(subject|title|heading)\b/i.test(t) ? 'title' : 'text';
+      
+      const llmProcessed = await processContentWithLLM(value, detectedType, transcript);
+      if (llmProcessed && llmProcessed !== value) {
+        console.log('[fill] Using LLM processed auto-detected content:', { detectedType, original: value, processed: llmProcessed });
+        value = llmProcessed;
+        if (!fieldHint) fieldHint = detectedType;
       }
     }
 
