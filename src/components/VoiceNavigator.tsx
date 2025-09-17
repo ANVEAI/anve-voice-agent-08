@@ -221,9 +221,9 @@ const VoiceNavigator = () => {
       });
 
       // Final transcripts
-      this.vapiWidget.on("message", (message) => {
+      this.vapiWidget.on("message", async (message) => {
         if (message.type === "transcript" && message.transcriptType === "final") {
-          this.handleTranscript(message);
+          await this.handleTranscript(message);
         }
       });
 
@@ -281,14 +281,12 @@ const VoiceNavigator = () => {
       }
     }
 
-    async callNormalizeContent(rawValue, fieldHint, transcript) {
+    async callNormalizeContent(transcript) {
       try {
         const res = await fetch(\`\${BACKEND_URL}/normalize-content\`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            rawValue,
-            fieldHint,
             transcript
           })
         });
@@ -376,7 +374,8 @@ const VoiceNavigator = () => {
         case 'fill':
           this.updateStatus(\`👤 Fill (\${Math.round(confidence * 100)}%): "\${transcript}"\`);
           if (action.value) {
-            this.processFillWithNormalization(action, transcript);
+            const r = fillField(action);
+            this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
           } else {
             this.updateStatus('⚠️ No fill value identified');
           }
@@ -468,66 +467,36 @@ const VoiceNavigator = () => {
       this.emailBufTimer = setTimeout(() => this.flushEmailBuffer('timeout'), 1200);
     }
 
-    async processFillWithNormalization(action, transcript) {
-      try {
-        this.updateStatus('🔄 Normalizing content...');
-        
-        // Call normalization API
-        const normalizationResult = await this.callNormalizeContent(
-          action.value, 
-          action.fieldHint || 'text', 
-          transcript
-        );
-        
-        if (normalizationResult && normalizationResult.normalizedValue) {
-          const normalizedAction = { 
-            ...action, 
-            value: normalizationResult.normalizedValue 
-          };
-          
-          if (normalizationResult.changed) {
-            this.updateStatus(\`✨ Corrected: "\${action.value}" → "\${normalizationResult.normalizedValue}"\`);
-          }
-          
-          const r = fillField(normalizedAction);
-          this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
-        } else {
-          // Fallback to original if normalization fails
-          const r = fillField(action);
-          this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
-        }
-      } catch (error) {
-        console.error('processFillWithNormalization error:', error);
-        // Fallback to original if error occurs
-        const r = fillField(action);
-        this.updateStatus(r.ok ? (r.submitted ? '✅ Filled and submitted' : '✅ Filled') : '⚠️ No matching field');
-      }
-    }
 
-    flushEmailBuffer(reason) {
+    async flushEmailBuffer(reason) {
+      if (!this.emailBuf.trim()) return;
+
+      const rawBuf = this.emailBuf.trim();
+      console.log(\`📧 Email buffer flush (\${reason}): "\${rawBuf}"\`);
+
+      // Clear buffer and timer
       clearTimeout(this.emailBufTimer);
-      this.emailBufTimer = null;
-      const phrase = (this.emailBuf || '').trim();
       this.emailBuf = '';
-      if (!phrase) return;
+      this.emailBufTimer = null;
 
-      this.updateStatus(\`👤 Fill (email): "\${phrase}"\`);
-      this.callFillTool(phrase)
-        .then((result) => {
-          console.log('[fill] raw response', JSON.stringify(result, null, 2));
-          if (result?.action?.kind === 'fill') {
-            const act = { ...result.action };
+      // Content was already normalized in handleTranscript, so just use it directly
+      let normalizedEmail = rawBuf;
 
-            // Normalize hint to email when emailish
-            if (!act.fieldHint || /^(mail)$/i.test(act.fieldHint)) act.fieldHint = 'email';
+      // Try local fallback if still not a valid email
+      if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/i.test(normalizedEmail)) {
+        const fallbackEmail = fallbackNormalizeSpokenEmail(rawBuf);
+        if (fallbackEmail) {
+          normalizedEmail = fallbackEmail;
+          this.updateStatus(\`✨ Locally corrected: "\${rawBuf}" → "\${normalizedEmail}"\`);
+        }
+      }
 
-            // Process with normalization
-            this.processFillWithNormalization(act, phrase);
-          } else {
-            this.updateStatus('ℹ️ No fill action returned');
-          }
-        })
-        .catch(() => this.updateStatus('❌ Fill failed'));
+      if (normalizedEmail && /^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/i.test(normalizedEmail)) {
+        const fillResult = fillField({ value: normalizedEmail, fieldHint: 'email', transcript: rawBuf });
+        this.updateStatus(fillResult.ok ? '✅ Email filled successfully' : '⚠️ No email field found');
+      } else {
+        this.updateStatus('⚠️ Could not parse email format');
+      }
     }
 
     // Pre-normalize transcript for common ASR issues and synonyms
@@ -635,20 +604,28 @@ const VoiceNavigator = () => {
     }
 
     async handleTranscript(message) {
-      const rawTranscript = message.transcript?.trim();
-      if (!rawTranscript || rawTranscript.length < 3) return;
+      const originalTranscript = message.transcript?.trim();
+      if (!originalTranscript || originalTranscript.length < 3) return;
 
-      if (rawTranscript === this.lastProcessedTranscript) return;
-      this.lastProcessedTranscript = rawTranscript;
+      if (originalTranscript === this.lastProcessedTranscript) return;
+      this.lastProcessedTranscript = originalTranscript;
 
       if (!this.callActive) return;
       if (this.assistantSpeaking) return;
 
-      // Pre-normalize the transcript
-      const transcript = this.preNormalizeTranscript(rawTranscript);
-      const lowerTranscript = transcript.toLowerCase();
+      console.log('🎙️ Voice transcript:', originalTranscript);
       
-      console.log(\`🎤 Processing: "\${rawTranscript}" → "\${transcript}"\`);
+      // Step 1: Normalize content first
+      this.updateStatus('🔄 Normalizing content...');
+      const normalizationResult = await this.callNormalizeContent(originalTranscript);
+      
+      const transcript = normalizationResult?.normalized || originalTranscript;
+      if (normalizationResult?.normalized && normalizationResult.normalized !== originalTranscript) {
+        this.updateStatus(\`✨ Corrected: "\${originalTranscript}" → "\${transcript}"\`);
+      }
+      
+      this.updateStatus(\`🎧 Processing: "\${transcript}"\`);
+      const lowerTranscript = transcript.toLowerCase();
 
       // Check for direct navigation first
       if (this.isDirectNavigation(transcript)) {
@@ -657,6 +634,12 @@ const VoiceNavigator = () => {
           this.updateStatus(\`✅ Navigated to \${target}\`);
           return;
         }
+      }
+
+      // Email buffering logic
+      if (isEmailish(transcript)) {
+        this.queueEmailFragment(transcript);
+        return;
       }
 
       // Try LLM intent classification first
