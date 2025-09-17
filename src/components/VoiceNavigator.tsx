@@ -99,8 +99,8 @@ const VoiceNavigator = () => {
   }
 
   const VAPI_CONFIG = {
-    assistant: "a8219da4-293e-495e-bc00-2bb3cb4fac7e",
-    apiKey: "be64e307-aae6-4b36-b451-9bbb51f1e2b8",
+    assistant: "f2c32094-2fa9-478d-906d-73832eb377cb",
+    apiKey: "ef2b1fa3-3c5c-47c5-9472-56431ee8ac95",
     position: "bottom-right",
     theme: "light",
     mode: "voice"
