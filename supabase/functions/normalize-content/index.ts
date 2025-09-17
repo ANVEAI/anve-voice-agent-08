@@ -125,27 +125,30 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript } = await req.json();
+    const { rawValue, fieldHint, transcript } = await req.json();
 
-    if (!transcript) {
+    if (!rawValue || !transcript) {
       return new Response(JSON.stringify({ 
-        error: 'Missing required field: transcript' 
+        error: 'Missing required fields: rawValue and transcript are required' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('[normalize] Received request:', { transcript });
+    console.log('[normalize] Received request:', { rawValue, fieldHint, transcript });
 
     const normalizedValue = await processContentWithLLM(
-      transcript, 
-      'auto-detect', 
+      rawValue, 
+      fieldHint || 'text', 
       transcript
     );
 
     const response = {
-      normalized: normalizedValue
+      originalValue: rawValue,
+      normalizedValue: normalizedValue,
+      fieldHint: fieldHint || 'text',
+      changed: normalizedValue !== rawValue
     };
 
     console.log('[normalize] Sending response:', response);
