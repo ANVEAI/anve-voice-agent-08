@@ -100,17 +100,29 @@ const VoiceNavigator = () => {
               console.log('[VoiceNavigator] VAPI message:', message);
               if (message.type === 'function-call') {
                 this.updateStatus('Processing command...', 'processing');
+              } else if (message.type === 'conversation-update') {
+                // Check if AI responded without calling functions
+                const lastMessage = message.conversation?.[message.conversation.length - 1];
+                if (lastMessage?.role === 'assistant' && !lastMessage.toolCalls) {
+                  console.warn('[VoiceNavigator] AI responded without calling functions. Check VAPI assistant configuration.');
+                  this.updateStatus('⚠️ Voice command recognized but not executed', 'warning');
+                }
               }
             });
           }
           
           setupSupabaseRealtime() {
             // Get supabase from the global scope (injected by React component)
+            console.log('[VoiceNavigator] Checking for supabase client...', typeof window.supabase);
+            
             if (!window.supabase) {
-              console.error('[VoiceNavigator] Supabase client not available');
+              console.error('[VoiceNavigator] Supabase client not available. Available keys:',
+                Object.keys(window).filter(k => k.includes('supabase')));
               return;
             }
 
+            console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
+            
             // Connect to Supabase Realtime channel for voice commands
             this.supabaseChannel = window.supabase.channel('voice-commands');
             
@@ -485,7 +497,8 @@ const VoiceNavigator = () => {
               processing: '#f59e0b',
               success: '#10b981',
               error: '#ef4444',
-              info: '#6b7280'
+              info: '#6b7280',
+              warning: '#f59e0b'
             };
             
             this.statusDiv.textContent = message;
@@ -508,9 +521,12 @@ const VoiceNavigator = () => {
       })();
     `;
     
-    // Inject supabase client into global scope for the script
+    // Inject supabase client into global scope BEFORE adding the script
     (window as any).supabase = supabase;
+    console.log('[VoiceNavigator] Supabase client injected:', !!supabase);
     
+    // Add script identifier for cleanup
+    script.setAttribute('data-voice-navigator', 'true');
     document.head.appendChild(script);
     
     return () => {
