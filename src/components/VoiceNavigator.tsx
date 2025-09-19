@@ -506,8 +506,8 @@ const VoiceNavigator = () => {
           }
         }
         
-        // Make supabase available globally for the injected script
-        window.supabase = ${JSON.stringify(null)}; // Will be replaced by actual client
+        // Make supabase available globally for the injected script (do not overwrite if already set)
+        window.supabase = window.supabase || null; // Preserved if injected earlier
         
         // Initialize when DOM is ready
         if (document.readyState === 'loading') {
