@@ -19,6 +19,12 @@ interface VAPIWebhookPayload {
       name: string;
       parameters: Record<string, any>;
     };
+    toolCalls?: Array<{
+      function: {
+        name: string;
+        arguments: string | Record<string, any>;
+      };
+    }>;
   };
   call?: {
     id: string;
@@ -42,15 +48,32 @@ serve(async (req) => {
     const payload: VAPIWebhookPayload = await req.json();
     console.log('[vapi-webhook] Received payload:', JSON.stringify(payload, null, 2));
 
-    // Only process function call messages
-    if (payload.message.type !== 'function-call' || !payload.message.functionCall) {
-      console.log('[vapi-webhook] Ignoring non-function-call message');
+    // Handle both function-call and tool-calls message types
+    let functionCall = null;
+    
+    if (payload.message.type === 'function-call' && payload.message.functionCall) {
+      functionCall = payload.message.functionCall;
+    } else if (payload.message.type === 'tool-calls' && payload.message.toolCalls?.length > 0) {
+      // Handle tool-calls format - take the first tool call
+      const toolCall = payload.message.toolCalls[0];
+      if (toolCall?.function) {
+        functionCall = {
+          name: toolCall.function.name,
+          parameters: typeof toolCall.function.arguments === 'string' 
+            ? JSON.parse(toolCall.function.arguments)
+            : toolCall.function.arguments
+        };
+      }
+    }
+    
+    if (!functionCall) {
+      console.log('[vapi-webhook] Ignoring message - no function call found:', payload.message.type);
       return new Response(JSON.stringify({ result: 'ignored' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { name, parameters } = payload.message.functionCall;
+    const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
 
     console.log('[vapi-webhook] Processing function call:', { name, parameters, callId });
