@@ -127,7 +127,7 @@ const VoiceNavigator = () => {
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
             
             // Connect to session-specific Supabase Realtime channel for voice commands
-            const channelName = \`voice-commands-\${this.sessionId}\`;
+            const channelName = 'voice-commands-' + this.sessionId;
             console.log('[VoiceNavigator] Connecting to session channel:', channelName);
             this.supabaseChannel = window.supabase.channel(channelName);
             

@@ -150,7 +150,7 @@ serve(async (req) => {
       throw new Error('Missing sessionId in call metadata - commands cannot be routed to specific user');
     }
     
-    const channelName = \`voice-commands-\${sessionId}\`;
+    const channelName = `voice-commands-${sessionId}`;
     console.log('[vapi-webhook] Broadcasting to session channel:', channelName);
     
     const channel = supabase.channel(channelName);
