@@ -78,9 +78,14 @@ serve(async (req) => {
 
     const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
-    const sessionId = payload.call?.metadata?.sessionId;
+    const sessionId = parameters.session_id || payload.call?.metadata?.sessionId;
 
     console.log('[vapi-webhook] Processing function call:', { name, parameters, callId, sessionId });
+
+    // Validate session ID is present
+    if (!sessionId) {
+      throw new Error('Missing session_id parameter - commands cannot be routed to specific user');
+    }
 
     // Validate function call and prepare command
     let command;
@@ -93,7 +98,8 @@ serve(async (req) => {
           action: 'scroll',
           direction: parameters.direction,
           timestamp: new Date().toISOString(),
-          callId
+          callId,
+          sessionId
         };
         break;
 
@@ -108,7 +114,8 @@ serve(async (req) => {
           nth: parameters.nth || null,
           role: parameters.role || null,
           timestamp: new Date().toISOString(),
-          callId
+          callId,
+          sessionId
         };
         break;
 
@@ -123,7 +130,8 @@ serve(async (req) => {
           selector: parameters.selector || null,
           submit: parameters.submit || false,
           timestamp: new Date().toISOString(),
-          callId
+          callId,
+          sessionId
         };
         break;
 
@@ -135,7 +143,8 @@ serve(async (req) => {
           action: 'toggle',
           target: parameters.target,
           timestamp: new Date().toISOString(),
-          callId
+          callId,
+          sessionId
         };
         break;
 
@@ -145,11 +154,11 @@ serve(async (req) => {
 
     console.log('[vapi-webhook] Broadcasting command:', command);
 
-    // TEMPORARY FIX: Use global channel until we implement proper session isolation
-    // TODO: Implement proper session-based channel isolation
-    console.log('[vapi-webhook] Using global channel (no session isolation yet)');
+    // Broadcast to session-specific channel
+    const channelName = `voice-commands-${sessionId}`;
+    console.log('[vapi-webhook] Broadcasting to session channel:', channelName);
     
-    const channel = supabase.channel('voice-commands');
+    const channel = supabase.channel(channelName);
     await channel.send({
       type: 'broadcast',
       event: 'voice_command',
