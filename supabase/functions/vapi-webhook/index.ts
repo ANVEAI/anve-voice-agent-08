@@ -28,6 +28,9 @@ interface VAPIWebhookPayload {
   };
   call?: {
     id: string;
+    metadata?: {
+      sessionId?: string;
+    };
   };
 }
 
@@ -75,8 +78,9 @@ serve(async (req) => {
 
     const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
+    const sessionId = payload.call?.metadata?.sessionId;
 
-    console.log('[vapi-webhook] Processing function call:', { name, parameters, callId });
+    console.log('[vapi-webhook] Processing function call:', { name, parameters, callId, sessionId });
 
     // Validate function call and prepare command
     let command;
@@ -141,8 +145,15 @@ serve(async (req) => {
 
     console.log('[vapi-webhook] Broadcasting command:', command);
 
-    // Broadcast command via Supabase Realtime
-    const channel = supabase.channel('voice-commands');
+    // Broadcast command via session-specific Supabase Realtime channel
+    if (!sessionId) {
+      throw new Error('Missing sessionId in call metadata - commands cannot be routed to specific user');
+    }
+    
+    const channelName = \`voice-commands-\${sessionId}\`;
+    console.log('[vapi-webhook] Broadcasting to session channel:', channelName);
+    
+    const channel = supabase.channel(channelName);
     await channel.send({
       type: 'broadcast',
       event: 'voice_command',

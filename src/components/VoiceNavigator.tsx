@@ -65,6 +65,9 @@ const VoiceNavigator = () => {
               throw new Error('VAPI SDK not loaded');
             }
             
+            // Generate unique session ID for this user
+            this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+            
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
               assistant: VAPI_CONFIG.assistantId,
@@ -74,7 +77,7 @@ const VoiceNavigator = () => {
                 mode: 'voice'
               },
               metadata: { 
-                sessionId: 'session_' + Date.now(),
+                sessionId: this.sessionId,
                 url: window.location.href 
               }
             });
@@ -123,8 +126,10 @@ const VoiceNavigator = () => {
 
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
             
-            // Connect to Supabase Realtime channel for voice commands
-            this.supabaseChannel = window.supabase.channel('voice-commands');
+            // Connect to session-specific Supabase Realtime channel for voice commands
+            const channelName = \`voice-commands-\${this.sessionId}\`;
+            console.log('[VoiceNavigator] Connecting to session channel:', channelName);
+            this.supabaseChannel = window.supabase.channel(channelName);
             
             this.supabaseChannel.on('broadcast', { event: 'voice_command' }, (payload) => {
               console.log('[VoiceNavigator] Received voice command:', payload);
