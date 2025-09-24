@@ -126,10 +126,10 @@ const VoiceNavigator = () => {
 
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
             
-            // Connect to session-specific Supabase Realtime channel for voice commands
-            const channelName = 'voice-commands-' + this.sessionId;
-            console.log('[VoiceNavigator] Connecting to session channel:', channelName);
-            this.supabaseChannel = window.supabase.channel(channelName);
+            // TEMPORARY: Use global channel until we implement proper session isolation  
+            // TODO: Implement session-based channel isolation
+            console.log('[VoiceNavigator] Connecting to global channel (no session isolation yet)');
+            this.supabaseChannel = window.supabase.channel('voice-commands');
             
             this.supabaseChannel.on('broadcast', { event: 'voice_command' }, (payload) => {
               console.log('[VoiceNavigator] Received voice command:', payload);

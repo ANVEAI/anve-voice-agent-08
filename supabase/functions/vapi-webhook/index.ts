@@ -145,15 +145,11 @@ serve(async (req) => {
 
     console.log('[vapi-webhook] Broadcasting command:', command);
 
-    // Broadcast command via session-specific Supabase Realtime channel
-    if (!sessionId) {
-      throw new Error('Missing sessionId in call metadata - commands cannot be routed to specific user');
-    }
+    // TEMPORARY FIX: Use global channel until we implement proper session isolation
+    // TODO: Implement proper session-based channel isolation
+    console.log('[vapi-webhook] Using global channel (no session isolation yet)');
     
-    const channelName = `voice-commands-${sessionId}`;
-    console.log('[vapi-webhook] Broadcasting to session channel:', channelName);
-    
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel('voice-commands');
     await channel.send({
       type: 'broadcast',
       event: 'voice_command',
