@@ -65,9 +65,9 @@ const VoiceNavigator = () => {
               throw new Error('VAPI SDK not loaded');
             }
             
-            // Generate unique session ID for this user
-            this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-            console.log('[VoiceNavigator] DEBUG - Generated sessionId:', this.sessionId);
+            // Use "default" to match what VAPI sends in function calls
+            this.sessionId = 'default';
+            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
             
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
