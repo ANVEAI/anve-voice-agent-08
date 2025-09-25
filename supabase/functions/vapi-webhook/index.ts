@@ -81,9 +81,17 @@ serve(async (req) => {
     
     // Robust session ID extraction with fallback to call ID
     let sessionId = null;
-    if (parameters.session_id && parameters.session_id !== 'default') {
+    
+    // Check if session_id is valid (not placeholder, default, or empty)
+    const isValidSessionId = parameters.session_id && 
+      parameters.session_id !== 'default' && 
+      parameters.session_id !== '{{call.id}}' && 
+      parameters.session_id.trim() !== '';
+    
+    if (isValidSessionId) {
       sessionId = parameters.session_id;
     } else if (payload.call?.id) {
+      // Always fall back to actual call ID from payload
       sessionId = payload.call.id;
     } else if (payload.call?.metadata?.sessionId) {
       sessionId = payload.call.metadata.sessionId;
