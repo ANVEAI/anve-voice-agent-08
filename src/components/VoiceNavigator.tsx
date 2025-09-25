@@ -32,7 +32,7 @@ const VoiceNavigator = () => {
             try {
               await this.loadVAPISDK();
               this.initializeVAPI();
-              this.setupSupabaseRealtime();
+              // Note: setupSupabaseRealtime() is now called in call-start event
               this.createStatusUI();
               console.log('[VoiceNavigator] VAPI Voice Navigator initialized successfully');
             } catch (error) {
@@ -65,9 +65,8 @@ const VoiceNavigator = () => {
               throw new Error('VAPI SDK not loaded');
             }
             
-            // Use "default" to match what VAPI sends in function calls
-            this.sessionId = 'default';
-            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
+            // Don't set sessionId yet - wait for call-start
+            this.sessionId = null;
             
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
@@ -78,19 +77,30 @@ const VoiceNavigator = () => {
                 mode: 'voice'
               },
               metadata: { 
-                sessionId: this.sessionId,
                 url: window.location.href 
               }
             });
             
-            this.vapiInstance.on('call-start', () => {
-              console.log('[VoiceNavigator] VAPI call started');
+            this.vapiInstance.on('call-start', (callData) => {
+              console.log('[VoiceNavigator] VAPI call started:', callData);
+              
+              // Use call ID as unique session ID for isolation
+              this.sessionId = (callData && callData.call && callData.call.id) || 'session-' + Date.now();
+              console.log('[VoiceNavigator] DEBUG - Session ID set to:', this.sessionId);
+              
+              // Now setup Supabase realtime with unique session
+              this.setupSupabaseRealtime();
+              
               this.isConnected = true;
               this.updateStatus('🎤 Voice active - speak your command', 'listening');
             });
             
             this.vapiInstance.on('call-end', () => {
               console.log('[VoiceNavigator] VAPI call ended');
+              
+              // Clean up session
+              this.cleanupSession();
+              
               this.isConnected = false;
               this.updateStatus('Voice ready - click to start', 'ready');
             });
@@ -116,6 +126,12 @@ const VoiceNavigator = () => {
           }
           
           setupSupabaseRealtime() {
+            // Only setup if we have a valid session ID
+            if (!this.sessionId) {
+              console.warn('[VoiceNavigator] No session ID available, skipping Supabase setup');
+              return;
+            }
+
             // Get supabase from the global scope (injected by React component)
             console.log('[VoiceNavigator] Checking for supabase client...', typeof window.supabase);
             
@@ -126,7 +142,7 @@ const VoiceNavigator = () => {
             }
 
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
-            console.log('[VoiceNavigator] DEBUG - Generated sessionId:', this.sessionId);
+            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
             
             // Connect to session-specific Supabase Realtime channel for voice commands
             const channelName = 'voice-commands-' + this.sessionId;
@@ -154,9 +170,27 @@ const VoiceNavigator = () => {
               console.log('[VoiceNavigator] Supabase channel status:', status);
             });
           }
+
+          cleanupSession() {
+            if (this.supabaseChannel) {
+              console.log('[VoiceNavigator] Unsubscribing from channel for session:', this.sessionId);
+              this.supabaseChannel.unsubscribe();
+              this.supabaseChannel = null;
+            }
+            this.sessionId = null;
+          }
           
           handleVoiceCommand(command) {
             console.log('[VoiceNavigator] Executing command:', command);
+            
+            // Session isolation guard - ignore commands not meant for this session
+            if (command.sessionId && command.sessionId !== this.sessionId) {
+              console.log('[VoiceNavigator] Ignoring command for different session:', {
+                commandSessionId: command.sessionId,
+                currentSessionId: this.sessionId
+              });
+              return;
+            }
             
             try {
               switch (command.action) {

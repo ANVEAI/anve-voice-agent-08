@@ -56,7 +56,7 @@ serve(async (req) => {
     
     if (payload.message.type === 'function-call' && payload.message.functionCall) {
       functionCall = payload.message.functionCall;
-    } else if (payload.message.type === 'tool-calls' && payload.message.toolCalls?.length > 0) {
+    } else if (payload.message.type === 'tool-calls' && payload.message.toolCalls && payload.message.toolCalls.length > 0) {
       // Handle tool-calls format - take the first tool call
       const toolCall = payload.message.toolCalls[0];
       if (toolCall?.function) {
@@ -78,25 +78,40 @@ serve(async (req) => {
 
     const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
-    const sessionId = parameters.session_id || payload.call?.metadata?.sessionId;
+    
+    // Robust session ID extraction with fallback to call ID
+    let sessionId = null;
+    if (parameters.session_id && parameters.session_id !== 'default') {
+      sessionId = parameters.session_id;
+    } else if (payload.call?.id) {
+      sessionId = payload.call.id;
+    } else if (payload.call?.metadata?.sessionId) {
+      sessionId = payload.call.metadata.sessionId;
+    }
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
-    console.log('[vapi-webhook] DEBUG - Full payload structure:', {
-      functionCall: functionCall,
-      callMetadata: payload.call?.metadata,
+    console.log('[vapi-webhook] DEBUG - Session ID extraction:', {
       parametersSessionId: parameters.session_id,
+      callId: payload.call?.id,
       metadataSessionId: payload.call?.metadata?.sessionId,
+      finalSessionId: sessionId,
       timestamp: new Date().toISOString()
     });
 
-    // Validate session ID is present
+    // Validate session ID is present and valid
     if (!sessionId) {
-      console.error('[vapi-webhook] ERROR - Missing session_id! Available data:', {
+      console.error('[vapi-webhook] ERROR - No valid session ID found! Available data:', {
         parameters: parameters,
-        callMetadata: payload.call?.metadata,
+        call: payload.call,
         fullPayload: payload
       });
-      throw new Error('Missing session_id parameter - commands cannot be routed to specific user');
+      return new Response(JSON.stringify({ 
+        error: 'No valid session ID found - commands cannot be routed to specific user',
+        details: 'Ensure session_id parameter is provided or call.id is available'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Validate function call and prepare command
@@ -198,7 +213,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('[vapi-webhook] Error processing webhook:', error);
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       result: 'Command failed to execute'
     }), {
       status: 500,
