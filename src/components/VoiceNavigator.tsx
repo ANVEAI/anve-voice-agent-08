@@ -112,6 +112,40 @@ const VoiceNavigator = () => {
             
             this.vapiInstance.on('message', (message) => {
               console.log('[VoiceNavigator] VAPI message:', message);
+              
+              // Check for real call.id in message to sync session
+              const messageCallId = message.call?.id || message.call?.metadata?.sessionId;
+              if (messageCallId && this.sessionId) {
+                const currentIsProvisional = this.sessionId.startsWith('session-');
+                const isDifferent = messageCallId !== this.sessionId;
+                
+                if (currentIsProvisional || isDifferent) {
+                  console.log('[VoiceNavigator] DEBUG - Session sync detected:', {
+                    oldSessionId: this.sessionId,
+                    newSessionId: messageCallId,
+                    wasProvisional: currentIsProvisional,
+                    isDifferent: isDifferent,
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // Clean up old channel
+                  if (this.supabaseChannel) {
+                    const oldChannelName = 'voice-commands-' + this.sessionId;
+                    console.log('[VoiceNavigator] DEBUG - Unsubscribing from old channel:', oldChannelName);
+                    this.supabaseChannel.unsubscribe();
+                    this.supabaseChannel = null;
+                  }
+                  
+                  // Update session ID
+                  this.sessionId = messageCallId;
+                  console.log('[VoiceNavigator] DEBUG - Session ID updated to:', this.sessionId);
+                  
+                  // Setup new channel
+                  this.setupSupabaseRealtime();
+                  console.log('[VoiceNavigator] DEBUG - Session sync completed');
+                }
+              }
+              
               if (message.type === 'function-call') {
                 this.updateStatus('Processing command...', 'processing');
               } else if (message.type === 'conversation-update') {
