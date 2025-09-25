@@ -215,17 +215,6 @@ const VoiceNavigator = () => {
             const targets = this.findClickTargets(targetText, selector, role);
             
             if (targets.length === 0) {
-              // Fallback: try to find any element (or its descendants) matching the text/labels
-              const fallbackMatches = this.findElementsByTextLike(targetText);
-              if (fallbackMatches.length) {
-                const candidate = fallbackMatches[0];
-                const clickableAncestor = this.getClosestClickable(candidate) || candidate.closest('button, a, [role="button"], [onclick], input[type="button"], input[type="submit"], [tabindex]:not([tabindex="-1"]), .clickable');
-                if (clickableAncestor) {
-                  console.log('[VoiceNavigator] Fallback clicking closest clickable ancestor:', clickableAncestor);
-                  this.simulateClick(clickableAncestor);
-                  return;
-                }
-              }
               console.warn('[VoiceNavigator] No clickable elements found for:', targetText);
               return;
             }
@@ -289,7 +278,7 @@ const VoiceNavigator = () => {
             const clickableSelectors = [
               'button', 'a', '[role="button"]', '[onclick]', 
               'input[type="button"]', 'input[type="submit"]',
-              'img[alt]', '[tabindex]:not([tabindex="-1"])', '.clickable'
+              '[tabindex]:not([tabindex="-1"])', '.clickable'
             ];
             
             if (selector) {
@@ -370,42 +359,6 @@ const VoiceNavigator = () => {
             }
             
             return candidates.sort((a, b) => b.score - a.score);
-          }
-
-          // Helper to find closest clickable ancestor
-          getClosestClickable(element) {
-            const clickableSelector = 'button, a, [role="button"], [onclick], input[type="button"], input[type="submit"], [tabindex]:not([tabindex="-1"]), .clickable';
-            return element ? element.closest(clickableSelector) : null;
-          }
-
-          // Helper to find elements where text or alt/aria-label/title matches
-          findElementsByTextLike(targetText) {
-            const normalized = (targetText || '').toLowerCase().trim();
-            if (!normalized) return [];
-            const candidates = Array.from(document.querySelectorAll('[aria-label],[title],img[alt],button,a,[role="button"],[onclick],[tabindex]:not([tabindex="-1"]),.clickable, *'));
-            const matches = [];
-            for (const el of candidates) {
-              if (!this.isVisible(el)) continue;
-              const texts = [
-                el.textContent?.toLowerCase() || '',
-                el.getAttribute('aria-label')?.toLowerCase() || '',
-                el.getAttribute('title')?.toLowerCase() || '',
-                el.getAttribute('alt')?.toLowerCase() || ''
-              ];
-              // include descendant labels/alt/title
-              const labeledDesc = el.querySelectorAll('[aria-label],[title],[alt]');
-              labeledDesc.forEach(child => {
-                texts.push(
-                  child.getAttribute('aria-label')?.toLowerCase() || '',
-                  child.getAttribute('title')?.toLowerCase() || '',
-                  child.getAttribute('alt')?.toLowerCase() || ''
-                );
-              });
-              if (texts.some(t => t && t.includes(normalized))) {
-                matches.push(el);
-              }
-            }
-            return matches;
           }
           
           // Utility Functions (preserved from original)
