@@ -25,6 +25,12 @@ interface VAPIWebhookPayload {
         arguments: string | Record<string, any>;
       };
     }>;
+    call?: {
+      id: string;
+      metadata?: {
+        sessionId?: string;
+      };
+    };
   };
   call?: {
     id: string;
@@ -77,7 +83,7 @@ serve(async (req) => {
     }
 
     const { name, parameters } = functionCall;
-    const callId = payload.call?.id || 'unknown';
+    const callId = payload.message?.call?.id || payload.call?.id || 'unknown';
     
     // Robust session ID extraction with fallback to call ID
     let sessionId = null;
@@ -90,9 +96,14 @@ serve(async (req) => {
     
     if (isValidSessionId) {
       sessionId = parameters.session_id;
+    } else if (payload.message?.call?.id) {
+      // Check message.call.id first (from recent logs)
+      sessionId = payload.message.call.id;
     } else if (payload.call?.id) {
-      // Always fall back to actual call ID from payload
+      // Fall back to top-level call.id
       sessionId = payload.call.id;
+    } else if (payload.message?.call?.metadata?.sessionId) {
+      sessionId = payload.message.call.metadata.sessionId;
     } else if (payload.call?.metadata?.sessionId) {
       sessionId = payload.call.metadata.sessionId;
     }
@@ -100,8 +111,10 @@ serve(async (req) => {
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
     console.log('[vapi-webhook] DEBUG - Session ID extraction:', {
       parametersSessionId: parameters.session_id,
-      callId: payload.call?.id,
-      metadataSessionId: payload.call?.metadata?.sessionId,
+      messageCallId: payload.message?.call?.id,
+      topLevelCallId: payload.call?.id,
+      messageMetadataSessionId: payload.message?.call?.metadata?.sessionId,
+      topLevelMetadataSessionId: payload.call?.metadata?.sessionId,
       finalSessionId: sessionId,
       timestamp: new Date().toISOString()
     });
