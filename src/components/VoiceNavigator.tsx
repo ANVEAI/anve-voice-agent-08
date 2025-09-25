@@ -68,6 +68,10 @@ const VoiceNavigator = () => {
             // Don't set sessionId yet - wait for call-start
             this.sessionId = null;
             
+            // Generate provisional session ID immediately
+            this.sessionId = 'session-' + Date.now();
+            console.log('[VoiceNavigator] DEBUG - Provisional session ID generated:', this.sessionId);
+            
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
               assistant: VAPI_CONFIG.assistantId,
@@ -77,18 +81,15 @@ const VoiceNavigator = () => {
                 mode: 'voice'
               },
               metadata: { 
-                url: window.location.href 
+                url: window.location.href,
+                sessionId: this.sessionId
               }
             });
             
             this.vapiInstance.on('call-start', (callData) => {
               console.log('[VoiceNavigator] VAPI call started:', callData);
               
-              // Use call ID as unique session ID for isolation
-              this.sessionId = (callData && callData.call && callData.call.id) || 'session-' + Date.now();
-              console.log('[VoiceNavigator] DEBUG - Session ID set to:', this.sessionId);
-              
-              // Now setup Supabase realtime with unique session
+              // Setup Supabase realtime with provisional session ID (already set above)
               this.setupSupabaseRealtime();
               
               this.isConnected = true;

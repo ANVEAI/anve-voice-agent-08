@@ -85,27 +85,31 @@ serve(async (req) => {
     const { name, parameters } = functionCall;
     const callId = payload.message?.call?.id || payload.call?.id || 'unknown';
     
-    // Robust session ID extraction with fallback to call ID
+    // Robust session ID extraction - prioritize metadata.sessionId from frontend
     let sessionId = null;
     
-    // Check if session_id is valid (not placeholder, default, or empty)
-    const isValidSessionId = parameters.session_id && 
-      parameters.session_id !== 'default' && 
-      parameters.session_id !== '{{call.id}}' && 
-      parameters.session_id.trim() !== '';
-    
-    if (isValidSessionId) {
-      sessionId = parameters.session_id;
-    } else if (payload.message?.call?.id) {
-      // Check message.call.id first (from recent logs)
-      sessionId = payload.message.call.id;
-    } else if (payload.call?.id) {
-      // Fall back to top-level call.id
-      sessionId = payload.call.id;
-    } else if (payload.message?.call?.metadata?.sessionId) {
+    // 1. First priority: metadata.sessionId from frontend (deterministic session handshake)
+    if (payload.message?.call?.metadata?.sessionId) {
       sessionId = payload.message.call.metadata.sessionId;
     } else if (payload.call?.metadata?.sessionId) {
       sessionId = payload.call.metadata.sessionId;
+    } 
+    // 2. Second priority: Check if session_id parameter is valid (not placeholder, default, or empty)
+    else {
+      const isValidSessionId = parameters.session_id && 
+        parameters.session_id !== 'default' && 
+        parameters.session_id !== '{{call.id}}' && 
+        parameters.session_id.trim() !== '';
+      
+      if (isValidSessionId) {
+        sessionId = parameters.session_id;
+      } else if (payload.message?.call?.id) {
+        // Check message.call.id first (from recent logs)
+        sessionId = payload.message.call.id;
+      } else if (payload.call?.id) {
+        // Fall back to top-level call.id
+        sessionId = payload.call.id;
+      }
     }
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
