@@ -392,7 +392,7 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
       const pageMatch = match[0].match(/\b(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up|home|homepage|main)\b/);
       if (pageMatch) {
         const pageName = pageMatch[1].replace(/s$/, '').replace(/\s+/g, ' '); // Remove plural 's' and normalize spaces
-        const targetPage = pageAliases[pageName.toLowerCase()] || pageName.toLowerCase();
+        const targetPage = (pageAliases as Record<string, string>)[pageName.toLowerCase()] || pageName.toLowerCase();
         
         console.log('📍 Page navigation detected - Page:', pageName, '→ Target:', targetPage);
         
@@ -497,23 +497,31 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
 
         switch (intentType) {
           case 'scroll':
-            action.direction = config.getDirection(text);
+            if ('getDirection' in config) {
+              action.direction = config.getDirection(text);
+            }
             break;
           case 'click':
-            const target = config.getTarget(text);
-            if (target) action.targetText = target;
+            if ('getTarget' in config) {
+              const target = config.getTarget(text);
+              if (target) action.targetText = target;
+            }
             break;
           case 'fill':
-            const value = config.getValue(text);
-            const fieldHint = config.getFieldHint(text);
-            if (value) {
-              action.value = value;
-              action.fieldHint = fieldHint;
+            if ('getValue' in config && 'getFieldHint' in config) {
+              const value = config.getValue(text);
+              const fieldHint = config.getFieldHint(text);
+              if (value) {
+                action.value = value;
+                action.fieldHint = fieldHint;
+              }
             }
             break;
           case 'toggle':
-            const toggleTarget = config.getTarget(text);
-            if (toggleTarget) action.target = toggleTarget;
+            if ('getTarget' in config) {
+              const toggleTarget = config.getTarget(text);
+              if (toggleTarget) action.target = toggleTarget;
+            }
             break;
         }
 
