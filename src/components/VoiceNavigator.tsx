@@ -67,6 +67,7 @@ const VoiceNavigator = () => {
             
             // Generate unique session ID for this user
             this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+            console.log('[VoiceNavigator] DEBUG - Generated sessionId:', this.sessionId);
             
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
@@ -125,14 +126,27 @@ const VoiceNavigator = () => {
             }
 
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
+            console.log('[VoiceNavigator] DEBUG - Generated sessionId:', this.sessionId);
             
             // Connect to session-specific Supabase Realtime channel for voice commands
             const channelName = 'voice-commands-' + this.sessionId;
-            console.log('[VoiceNavigator] Connecting to session channel:', channelName);
+            console.log('[VoiceNavigator] DEBUG - Subscribing to channel:', channelName);
+            console.log('[VoiceNavigator] DEBUG - Full channel subscription details:', {
+                sessionId: this.sessionId,
+                channelName: channelName,
+                timestamp: new Date().toISOString()
+            });
             this.supabaseChannel = window.supabase.channel(channelName);
             
             this.supabaseChannel.on('broadcast', { event: 'voice_command' }, (payload) => {
-              console.log('[VoiceNavigator] Received voice command:', payload);
+              console.log('[VoiceNavigator] DEBUG - Received voice command on channel:', channelName);
+              console.log('[VoiceNavigator] DEBUG - Command payload:', payload);
+              console.log('[VoiceNavigator] DEBUG - Command details:', {
+                receivedAt: new Date().toISOString(),
+                expectedSessionId: this.sessionId,
+                commandSessionId: payload.payload?.sessionId,
+                channelName: channelName
+              });
               this.handleVoiceCommand(payload.payload);
             });
             

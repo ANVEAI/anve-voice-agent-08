@@ -80,10 +80,22 @@ serve(async (req) => {
     const callId = payload.call?.id || 'unknown';
     const sessionId = parameters.session_id || payload.call?.metadata?.sessionId;
 
-    console.log('[vapi-webhook] Processing function call:', { name, parameters, callId, sessionId });
+    console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
+    console.log('[vapi-webhook] DEBUG - Full payload structure:', {
+      functionCall: functionCall,
+      callMetadata: payload.call?.metadata,
+      parametersSessionId: parameters.session_id,
+      metadataSessionId: payload.call?.metadata?.sessionId,
+      timestamp: new Date().toISOString()
+    });
 
     // Validate session ID is present
     if (!sessionId) {
+      console.error('[vapi-webhook] ERROR - Missing session_id! Available data:', {
+        parameters: parameters,
+        callMetadata: payload.call?.metadata,
+        fullPayload: payload
+      });
       throw new Error('Missing session_id parameter - commands cannot be routed to specific user');
     }
 
@@ -152,20 +164,27 @@ serve(async (req) => {
         throw new Error(`Unknown function: ${name}`);
     }
 
-    console.log('[vapi-webhook] Broadcasting command:', command);
+    console.log('[vapi-webhook] DEBUG - Broadcasting command:', command);
 
     // Broadcast to session-specific channel
     const channelName = `voice-commands-${sessionId}`;
-    console.log('[vapi-webhook] Broadcasting to session channel:', channelName);
+    console.log('[vapi-webhook] DEBUG - Broadcasting to session channel:', channelName);
+    console.log('[vapi-webhook] DEBUG - Broadcast details:', {
+      sessionId: sessionId,
+      channelName: channelName,
+      commandAction: command.action,
+      timestamp: new Date().toISOString()
+    });
     
     const channel = supabase.channel(channelName);
-    await channel.send({
+    const broadcastResult = await channel.send({
       type: 'broadcast',
       event: 'voice_command',
       payload: command
     });
 
-    console.log('[vapi-webhook] Command broadcasted successfully');
+    console.log('[vapi-webhook] DEBUG - Broadcast result:', broadcastResult);
+    console.log('[vapi-webhook] DEBUG - Command broadcasted successfully to channel:', channelName);
 
     // Return success response to VAPI
     return new Response(JSON.stringify({ 
