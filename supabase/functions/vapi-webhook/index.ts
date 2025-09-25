@@ -56,7 +56,7 @@ serve(async (req) => {
     
     if (payload.message.type === 'function-call' && payload.message.functionCall) {
       functionCall = payload.message.functionCall;
-    } else if (payload.message.type === 'tool-calls' && payload.message.toolCalls && payload.message.toolCalls.length > 0) {
+    } else if (payload.message.type === 'tool-calls' && payload.message.toolCalls?.length > 0) {
       // Handle tool-calls format - take the first tool call
       const toolCall = payload.message.toolCalls[0];
       if (toolCall?.function) {
@@ -78,13 +78,7 @@ serve(async (req) => {
 
     const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
-    
-    // Robust sessionId extraction with fallback to callId for unique session isolation
-    const sessionId = (
-      (parameters.session_id && parameters.session_id !== 'default' && parameters.session_id !== '') 
-        ? parameters.session_id 
-        : (payload.call?.metadata?.sessionId || payload.call?.id)
-    );
+    const sessionId = parameters.session_id || payload.call?.metadata?.sessionId;
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
     console.log('[vapi-webhook] DEBUG - Full payload structure:', {
@@ -204,7 +198,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('[vapi-webhook] Error processing webhook:', error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error.message,
       result: 'Command failed to execute'
     }), {
       status: 500,
