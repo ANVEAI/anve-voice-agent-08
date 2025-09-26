@@ -13,8 +13,8 @@ const VoiceNavigator = () => {
         
         // VAPI Configuration - Replace with your actual values
         const VAPI_CONFIG = {
-          publicKey: '27b4cb1c-417c-46a8-99f1-5caae66ec27c', // Your VAPI public key
-          assistantId: '65002353-42ce-4d46-aa9e-2de77cfa317b', // Your VAPI assistant ID
+          publicKey: 'a8487837-e8ae-4bb1-bf89-d6d2fe11de24', // Your VAPI public key
+          assistantId: 'f76866d5-c020-41d4-a35c-268f722d81ee', // Your VAPI assistant ID
           position: 'bottom-right',
           theme: 'light'
         };
@@ -32,7 +32,7 @@ const VoiceNavigator = () => {
             try {
               await this.loadVAPISDK();
               this.initializeVAPI();
-              // Note: setupSupabaseRealtime() is now called in call-start event
+              this.setupSupabaseRealtime();
               this.createStatusUI();
               console.log('[VoiceNavigator] VAPI Voice Navigator initialized successfully');
             } catch (error) {
@@ -65,12 +65,9 @@ const VoiceNavigator = () => {
               throw new Error('VAPI SDK not loaded');
             }
             
-            // Don't set sessionId yet - wait for call-start
-            this.sessionId = null;
-            
-            // Generate provisional session ID immediately
-            this.sessionId = 'session-' + Date.now();
-            console.log('[VoiceNavigator] DEBUG - Provisional session ID generated:', this.sessionId);
+            // Use "default" to match what VAPI sends in function calls
+            this.sessionId = 'default';
+            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
             
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
@@ -81,58 +78,19 @@ const VoiceNavigator = () => {
                 mode: 'voice'
               },
               metadata: { 
-                url: window.location.href,
-                sessionId: this.sessionId
+                sessionId: this.sessionId,
+                url: window.location.href 
               }
             });
             
-            this.vapiInstance.on('call-start', (callData) => {
-              console.log('[VoiceNavigator] VAPI call started:', callData);
-              console.log('[VoiceNavigator] DEBUG - Call data structure:', JSON.stringify(callData, null, 2));
-              
-              // Try multiple ways to extract the real call ID
-              let realCallId = null;
-              
-              if (callData) {
-                realCallId = callData.call?.id || 
-                            callData.id || 
-                            callData.callId ||
-                            callData.metadata?.callId ||
-                            callData.metadata?.sessionId;
-              }
-              
-              console.log('[VoiceNavigator] DEBUG - Extracted call ID from call-start:', realCallId);
-              
-              if (realCallId && realCallId !== this.sessionId) {
-                console.log('[VoiceNavigator] DEBUG - Switching from provisional session ID:', this.sessionId, 'to real call ID:', realCallId);
-                
-                // Unsubscribe from provisional channel if subscribed
-                if (this.supabaseChannel) {
-                  console.log('[VoiceNavigator] DEBUG - Unsubscribing from provisional channel');
-                  this.supabaseChannel.unsubscribe();
-                  this.supabaseChannel = null;
-                }
-                
-                // Update to real session ID
-                this.sessionId = realCallId;
-                
-                // Setup Supabase realtime with real session ID
-                this.setupSupabaseRealtime();
-              } else {
-                // Setup Supabase realtime with provisional session ID (already set above)
-                this.setupSupabaseRealtime();
-              }
-              
+            this.vapiInstance.on('call-start', () => {
+              console.log('[VoiceNavigator] VAPI call started');
               this.isConnected = true;
               this.updateStatus('🎤 Voice active - speak your command', 'listening');
             });
             
             this.vapiInstance.on('call-end', () => {
               console.log('[VoiceNavigator] VAPI call ended');
-              
-              // Clean up session
-              this.cleanupSession();
-              
               this.isConnected = false;
               this.updateStatus('Voice ready - click to start', 'ready');
             });
@@ -144,58 +102,6 @@ const VoiceNavigator = () => {
             
             this.vapiInstance.on('message', (message) => {
               console.log('[VoiceNavigator] VAPI message:', message);
-              
-              // Try multiple sources to extract call ID for session sync
-              let messageCallId = null;
-              
-              if (message) {
-                messageCallId = message.call?.id || 
-                               message.artifact?.call?.id ||
-                               message.call?.metadata?.sessionId ||
-                               message.metadata?.sessionId ||
-                               message.callId ||
-                               message.sessionId;
-              }
-              
-              console.log('[VoiceNavigator] DEBUG - Session sync check:', {
-                messageType: message?.type,
-                extractedCallId: messageCallId,
-                currentSessionId: this.sessionId,
-                messageStructure: Object.keys(message || {})
-              });
-              
-              if (messageCallId && this.sessionId) {
-                const currentIsProvisional = this.sessionId.startsWith('session-');
-                const isDifferent = messageCallId !== this.sessionId;
-                
-                if (currentIsProvisional || isDifferent) {
-                  console.log('[VoiceNavigator] DEBUG - Session sync detected:', {
-                    oldSessionId: this.sessionId,
-                    newSessionId: messageCallId,
-                    wasProvisional: currentIsProvisional,
-                    isDifferent: isDifferent,
-                    messageType: message?.type,
-                    timestamp: new Date().toISOString()
-                  });
-                  
-                  // Clean up old channel
-                  if (this.supabaseChannel) {
-                    const oldChannelName = 'voice-commands-' + this.sessionId;
-                    console.log('[VoiceNavigator] DEBUG - Unsubscribing from old channel:', oldChannelName);
-                    this.supabaseChannel.unsubscribe();
-                    this.supabaseChannel = null;
-                  }
-                  
-                  // Update session ID
-                  this.sessionId = messageCallId;
-                  console.log('[VoiceNavigator] DEBUG - Session ID updated to:', this.sessionId);
-                  
-                  // Setup new channel
-                  this.setupSupabaseRealtime();
-                  console.log('[VoiceNavigator] DEBUG - Session sync completed');
-                }
-              }
-              
               if (message.type === 'function-call') {
                 this.updateStatus('Processing command...', 'processing');
               } else if (message.type === 'conversation-update') {
@@ -210,12 +116,6 @@ const VoiceNavigator = () => {
           }
           
           setupSupabaseRealtime() {
-            // Only setup if we have a valid session ID
-            if (!this.sessionId) {
-              console.warn('[VoiceNavigator] No session ID available, skipping Supabase setup');
-              return;
-            }
-
             // Get supabase from the global scope (injected by React component)
             console.log('[VoiceNavigator] Checking for supabase client...', typeof window.supabase);
             
@@ -226,7 +126,7 @@ const VoiceNavigator = () => {
             }
 
             console.log('[VoiceNavigator] Supabase client found, setting up realtime...');
-            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
+            console.log('[VoiceNavigator] DEBUG - Generated sessionId:', this.sessionId);
             
             // Connect to session-specific Supabase Realtime channel for voice commands
             const channelName = 'voice-commands-' + this.sessionId;
@@ -254,27 +154,9 @@ const VoiceNavigator = () => {
               console.log('[VoiceNavigator] Supabase channel status:', status);
             });
           }
-
-          cleanupSession() {
-            if (this.supabaseChannel) {
-              console.log('[VoiceNavigator] Unsubscribing from channel for session:', this.sessionId);
-              this.supabaseChannel.unsubscribe();
-              this.supabaseChannel = null;
-            }
-            this.sessionId = null;
-          }
           
           handleVoiceCommand(command) {
             console.log('[VoiceNavigator] Executing command:', command);
-            
-            // Session isolation guard - ignore commands not meant for this session
-            if (command.sessionId && command.sessionId !== this.sessionId) {
-              console.log('[VoiceNavigator] Ignoring command for different session:', {
-                commandSessionId: command.sessionId,
-                currentSessionId: this.sessionId
-              });
-              return;
-            }
             
             try {
               switch (command.action) {
@@ -333,6 +215,17 @@ const VoiceNavigator = () => {
             const targets = this.findClickTargets(targetText, selector, role);
             
             if (targets.length === 0) {
+              // Fallback: try to find any element (or its descendants) matching the text/labels
+              const fallbackMatches = this.findElementsByTextLike(targetText);
+              if (fallbackMatches.length) {
+                const candidate = fallbackMatches[0];
+                const clickableAncestor = this.getClosestClickable(candidate) || candidate.closest('button, a, [role="button"], [onclick], input[type="button"], input[type="submit"], [tabindex]:not([tabindex="-1"]), .clickable');
+                if (clickableAncestor) {
+                  console.log('[VoiceNavigator] Fallback clicking closest clickable ancestor:', clickableAncestor);
+                  this.simulateClick(clickableAncestor);
+                  return;
+                }
+              }
               console.warn('[VoiceNavigator] No clickable elements found for:', targetText);
               return;
             }
@@ -396,7 +289,7 @@ const VoiceNavigator = () => {
             const clickableSelectors = [
               'button', 'a', '[role="button"]', '[onclick]', 
               'input[type="button"]', 'input[type="submit"]',
-              '[tabindex]:not([tabindex="-1"])', '.clickable'
+              'img[alt]', '[tabindex]:not([tabindex="-1"])', '.clickable'
             ];
             
             if (selector) {
@@ -477,6 +370,42 @@ const VoiceNavigator = () => {
             }
             
             return candidates.sort((a, b) => b.score - a.score);
+          }
+
+          // Helper to find closest clickable ancestor
+          getClosestClickable(element) {
+            const clickableSelector = 'button, a, [role="button"], [onclick], input[type="button"], input[type="submit"], [tabindex]:not([tabindex="-1"]), .clickable';
+            return element ? element.closest(clickableSelector) : null;
+          }
+
+          // Helper to find elements where text or alt/aria-label/title matches
+          findElementsByTextLike(targetText) {
+            const normalized = (targetText || '').toLowerCase().trim();
+            if (!normalized) return [];
+            const candidates = Array.from(document.querySelectorAll('[aria-label],[title],img[alt],button,a,[role="button"],[onclick],[tabindex]:not([tabindex="-1"]),.clickable, *'));
+            const matches = [];
+            for (const el of candidates) {
+              if (!this.isVisible(el)) continue;
+              const texts = [
+                el.textContent?.toLowerCase() || '',
+                el.getAttribute('aria-label')?.toLowerCase() || '',
+                el.getAttribute('title')?.toLowerCase() || '',
+                el.getAttribute('alt')?.toLowerCase() || ''
+              ];
+              // include descendant labels/alt/title
+              const labeledDesc = el.querySelectorAll('[aria-label],[title],[alt]');
+              labeledDesc.forEach(child => {
+                texts.push(
+                  child.getAttribute('aria-label')?.toLowerCase() || '',
+                  child.getAttribute('title')?.toLowerCase() || '',
+                  child.getAttribute('alt')?.toLowerCase() || ''
+                );
+              });
+              if (texts.some(t => t && t.includes(normalized))) {
+                matches.push(el);
+              }
+            }
+            return matches;
           }
           
           // Utility Functions (preserved from original)
