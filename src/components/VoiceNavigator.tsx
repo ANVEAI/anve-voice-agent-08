@@ -88,9 +88,21 @@ const VoiceNavigator = () => {
             
             this.vapiInstance.on('call-start', (callData) => {
               console.log('[VoiceNavigator] VAPI call started:', callData);
+              console.log('[VoiceNavigator] DEBUG - Call data structure:', JSON.stringify(callData, null, 2));
               
-              // Check if we need to switch to the real call ID
-              const realCallId = callData?.call?.id;
+              // Try multiple ways to extract the real call ID
+              let realCallId = null;
+              
+              if (callData) {
+                realCallId = callData.call?.id || 
+                            callData.id || 
+                            callData.callId ||
+                            callData.metadata?.callId ||
+                            callData.metadata?.sessionId;
+              }
+              
+              console.log('[VoiceNavigator] DEBUG - Extracted call ID from call-start:', realCallId);
+              
               if (realCallId && realCallId !== this.sessionId) {
                 console.log('[VoiceNavigator] DEBUG - Switching from provisional session ID:', this.sessionId, 'to real call ID:', realCallId);
                 
@@ -133,8 +145,25 @@ const VoiceNavigator = () => {
             this.vapiInstance.on('message', (message) => {
               console.log('[VoiceNavigator] VAPI message:', message);
               
-              // Check for real call.id in message to sync session
-              const messageCallId = message.call?.id || message.call?.metadata?.sessionId;
+              // Try multiple sources to extract call ID for session sync
+              let messageCallId = null;
+              
+              if (message) {
+                messageCallId = message.call?.id || 
+                               message.artifact?.call?.id ||
+                               message.call?.metadata?.sessionId ||
+                               message.metadata?.sessionId ||
+                               message.callId ||
+                               message.sessionId;
+              }
+              
+              console.log('[VoiceNavigator] DEBUG - Session sync check:', {
+                messageType: message?.type,
+                extractedCallId: messageCallId,
+                currentSessionId: this.sessionId,
+                messageStructure: Object.keys(message || {})
+              });
+              
               if (messageCallId && this.sessionId) {
                 const currentIsProvisional = this.sessionId.startsWith('session-');
                 const isDifferent = messageCallId !== this.sessionId;
@@ -145,6 +174,7 @@ const VoiceNavigator = () => {
                     newSessionId: messageCallId,
                     wasProvisional: currentIsProvisional,
                     isDifferent: isDifferent,
+                    messageType: message?.type,
                     timestamp: new Date().toISOString()
                   });
                   
