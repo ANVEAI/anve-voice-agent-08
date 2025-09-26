@@ -12,6 +12,18 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Utility function to convert string boolean values to actual booleans
+function coerceStringToBoolean(value: any): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase();
+    if (lower === 'true') return true;
+    if (lower === 'false') return false;
+    if (lower === 'auto') return false; // auto defaults to false
+  }
+  return false;
+}
+
 interface VAPIWebhookPayload {
   message: {
     type: string;
@@ -89,37 +101,28 @@ serve(async (req) => {
     const metadataSessionId = payload.message?.call?.metadata?.sessionId || payload.call?.metadata?.sessionId;
     const callIdSession = payload.message?.call?.id || payload.call?.id;
     
-    // Determine primary session ID
+    // Determine primary session ID - simplified logic ignoring parameters.session_id
     let primarySessionId = null;
     
     // 1. First priority: metadata.sessionId from frontend (deterministic session handshake)
     if (metadataSessionId && metadataSessionId !== 'default' && metadataSessionId.trim() !== '') {
       primarySessionId = metadataSessionId;
     } 
-    // 2. Second priority: Check if session_id parameter is valid (not placeholder, default, or empty)
-    else {
-      const isValidSessionId = parameters.session_id && 
-        parameters.session_id !== 'default' && 
-        parameters.session_id !== '{{call.id}}' && 
-        parameters.session_id.trim() !== '';
-      
-      if (isValidSessionId) {
-        primarySessionId = parameters.session_id;
-      } else if (callIdSession) {
-        primarySessionId = callIdSession;
-      }
+    // 2. Second priority: Use call.id as fallback
+    else if (callIdSession) {
+      primarySessionId = callIdSession;
     }
     
     const sessionId = primarySessionId;
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
-    console.log('[vapi-webhook] DEBUG - Session ID extraction:', {
-      parametersSessionId: parameters.session_id,
+    console.log('[vapi-webhook] DEBUG - Session ID extraction (ignoring parameters.session_id):', {
       messageCallId: payload.message?.call?.id,
       topLevelCallId: payload.call?.id,
       messageMetadataSessionId: payload.message?.call?.metadata?.sessionId,
       topLevelMetadataSessionId: payload.call?.metadata?.sessionId,
       finalSessionId: sessionId,
+      parametersSessionIdIgnored: parameters.session_id, // Logged but ignored
       timestamp: new Date().toISOString()
     });
 
@@ -175,12 +178,18 @@ serve(async (req) => {
         if (!parameters.value) {
           throw new Error('Missing value for fill');
         }
+        const coercedSubmit = coerceStringToBoolean(parameters.submit);
+        console.log('[vapi-webhook] DEBUG - Fill field coercion:', { 
+          originalSubmit: parameters.submit, 
+          coercedSubmit, 
+          submitType: typeof parameters.submit 
+        });
         command = {
           action: 'fill',
           value: parameters.value,
           fieldHint: parameters.field_hint || 'text',
           selector: parameters.selector || null,
-          submit: parameters.submit || false,
+          submit: coercedSubmit,
           timestamp: new Date().toISOString(),
           callId,
           sessionId
