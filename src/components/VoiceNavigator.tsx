@@ -97,7 +97,7 @@ const VoiceNavigator = () => {
                 // Unsubscribe from provisional channel if subscribed
                 if (this.supabaseChannel) {
                   console.log('[VoiceNavigator] DEBUG - Unsubscribing from provisional channel');
-                  this.supabase.removeChannel(this.supabaseChannel);
+                  this.supabaseChannel.unsubscribe();
                   this.supabaseChannel = null;
                 }
                 
