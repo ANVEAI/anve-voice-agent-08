@@ -89,8 +89,27 @@ const VoiceNavigator = () => {
             this.vapiInstance.on('call-start', (callData) => {
               console.log('[VoiceNavigator] VAPI call started:', callData);
               
-              // Setup Supabase realtime with provisional session ID (already set above)
-              this.setupSupabaseRealtime();
+              // Check if we need to switch to the real call ID
+              const realCallId = callData?.call?.id;
+              if (realCallId && realCallId !== this.sessionId) {
+                console.log('[VoiceNavigator] DEBUG - Switching from provisional session ID:', this.sessionId, 'to real call ID:', realCallId);
+                
+                // Unsubscribe from provisional channel if subscribed
+                if (this.supabaseChannel) {
+                  console.log('[VoiceNavigator] DEBUG - Unsubscribing from provisional channel');
+                  this.supabase.removeChannel(this.supabaseChannel);
+                  this.supabaseChannel = null;
+                }
+                
+                // Update to real session ID
+                this.sessionId = realCallId;
+                
+                // Setup Supabase realtime with real session ID
+                this.setupSupabaseRealtime();
+              } else {
+                // Setup Supabase realtime with provisional session ID (already set above)
+                this.setupSupabaseRealtime();
+              }
               
               this.isConnected = true;
               this.updateStatus('🎤 Voice active - speak your command', 'listening');

@@ -85,14 +85,16 @@ serve(async (req) => {
     const { name, parameters } = functionCall;
     const callId = payload.message?.call?.id || payload.call?.id || 'unknown';
     
-    // Robust session ID extraction - prioritize metadata.sessionId from frontend
-    let sessionId = null;
+    // Dual-channel approach: extract both metadata.sessionId and call.id
+    const metadataSessionId = payload.message?.call?.metadata?.sessionId || payload.call?.metadata?.sessionId;
+    const callIdSession = payload.message?.call?.id || payload.call?.id;
+    
+    // Determine primary session ID
+    let primarySessionId = null;
     
     // 1. First priority: metadata.sessionId from frontend (deterministic session handshake)
-    if (payload.message?.call?.metadata?.sessionId) {
-      sessionId = payload.message.call.metadata.sessionId;
-    } else if (payload.call?.metadata?.sessionId) {
-      sessionId = payload.call.metadata.sessionId;
+    if (metadataSessionId && metadataSessionId !== 'default' && metadataSessionId.trim() !== '') {
+      primarySessionId = metadataSessionId;
     } 
     // 2. Second priority: Check if session_id parameter is valid (not placeholder, default, or empty)
     else {
@@ -102,15 +104,13 @@ serve(async (req) => {
         parameters.session_id.trim() !== '';
       
       if (isValidSessionId) {
-        sessionId = parameters.session_id;
-      } else if (payload.message?.call?.id) {
-        // Check message.call.id first (from recent logs)
-        sessionId = payload.message.call.id;
-      } else if (payload.call?.id) {
-        // Fall back to top-level call.id
-        sessionId = payload.call.id;
+        primarySessionId = parameters.session_id;
+      } else if (callIdSession) {
+        primarySessionId = callIdSession;
       }
     }
+    
+    const sessionId = primarySessionId;
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
     console.log('[vapi-webhook] DEBUG - Session ID extraction:', {
@@ -206,25 +206,47 @@ serve(async (req) => {
 
     console.log('[vapi-webhook] DEBUG - Broadcasting command:', command);
 
-    // Broadcast to session-specific channel
-    const channelName = `voice-commands-${sessionId}`;
-    console.log('[vapi-webhook] DEBUG - Broadcasting to session channel:', channelName);
-    console.log('[vapi-webhook] DEBUG - Broadcast details:', {
-      sessionId: sessionId,
-      channelName: channelName,
+    // Broadcast the command to the primary session channel
+    const primaryChannelName = `voice-commands-${sessionId}`;
+    console.log('[vapi-webhook] DEBUG - Broadcasting to primary session channel:', primaryChannelName);
+    console.log('[vapi-webhook] DEBUG - Primary broadcast details:', {
+      sessionId,
+      channelName: primaryChannelName,
       commandAction: command.action,
-      timestamp: new Date().toISOString()
-    });
-    
-    const channel = supabase.channel(channelName);
-    const broadcastResult = await channel.send({
-      type: 'broadcast',
-      event: 'voice_command',
-      payload: command
+      timestamp: command.timestamp
     });
 
-    console.log('[vapi-webhook] DEBUG - Broadcast result:', broadcastResult);
-    console.log('[vapi-webhook] DEBUG - Command broadcasted successfully to channel:', channelName);
+    const broadcastResult = await supabase
+      .channel(primaryChannelName)
+      .send({
+        type: 'broadcast',
+        event: 'voice_command',
+        payload: command
+      });
+
+    console.log('[vapi-webhook] DEBUG - Primary broadcast result:', broadcastResult ? 'ok' : 'error');
+    console.log('[vapi-webhook] DEBUG - Command broadcasted successfully to primary channel:', primaryChannelName);
+
+    // Dual broadcasting: if metadata and call ID are different, broadcast to both channels
+    if (metadataSessionId && callIdSession && metadataSessionId !== callIdSession) {
+      const secondarySessionId = (sessionId === metadataSessionId) ? callIdSession : metadataSessionId;
+      const secondaryChannelName = `voice-commands-${secondarySessionId}`;
+      
+      console.log('[vapi-webhook] DEBUG - Dual broadcasting to secondary channel:', secondaryChannelName);
+      
+      const secondaryCommand = { ...command, sessionId: secondarySessionId };
+      
+      const secondaryBroadcastResult = await supabase
+        .channel(secondaryChannelName)
+        .send({
+          type: 'broadcast',
+          event: 'voice_command',
+          payload: secondaryCommand
+        });
+
+      console.log('[vapi-webhook] DEBUG - Secondary broadcast result:', secondaryBroadcastResult ? 'ok' : 'error');
+      console.log('[vapi-webhook] DEBUG - Command broadcasted successfully to secondary channel:', secondaryChannelName);
+    }
 
     // Return success response to VAPI
     return new Response(JSON.stringify({ 
