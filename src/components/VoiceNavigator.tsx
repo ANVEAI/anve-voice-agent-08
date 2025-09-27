@@ -65,10 +65,11 @@ const VoiceNavigator = () => {
               throw new Error('VAPI SDK not loaded');
             }
             
-            // Use "default" to match what VAPI sends in function calls
-            this.sessionId = 'default';
-            console.log('[VoiceNavigator] DEBUG - Using sessionId:', this.sessionId);
+            // Generate unique session ID per browser tab for proper isolation
+            this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            console.log('[VoiceNavigator] DEBUG - Generated unique sessionId:', this.sessionId);
             
+            // Initialize VAPI instance with configuration
             this.vapiInstance = window.vapiSDK.run({
               apiKey: VAPI_CONFIG.publicKey,
               assistant: VAPI_CONFIG.assistantId,
@@ -76,12 +77,25 @@ const VoiceNavigator = () => {
                 position: VAPI_CONFIG.position, 
                 theme: VAPI_CONFIG.theme,
                 mode: 'voice'
-              },
-              metadata: { 
-                sessionId: this.sessionId,
-                url: window.location.href 
               }
             });
+            
+            // Override the default start behavior to pass sessionId via assistantOverrides
+            const originalStart = this.vapiInstance.start.bind(this.vapiInstance);
+            this.vapiInstance.start = (assistantIdOrConfig, overrides = {}) => {
+              console.log('[VoiceNavigator] Starting call with sessionId via assistantOverrides:', this.sessionId);
+              
+              // Merge our sessionId with any existing overrides
+              const assistantOverrides = {
+                ...overrides,
+                variableValues: {
+                  ...overrides.variableValues,
+                  sessionId: this.sessionId
+                }
+              };
+              
+              return originalStart(VAPI_CONFIG.assistantId, assistantOverrides);
+            };
             
             this.vapiInstance.on('call-start', () => {
               console.log('[VoiceNavigator] VAPI call started');

@@ -78,25 +78,32 @@ serve(async (req) => {
 
     const { name, parameters } = functionCall;
     const callId = payload.call?.id || 'unknown';
-    const sessionId = parameters.session_id || payload.call?.metadata?.sessionId;
+    const sessionId = parameters?.sessionId || parameters?.session_id || payload.call?.metadata?.sessionId;
 
     console.log('[vapi-webhook] DEBUG - Processing function call:', { name, parameters, callId, sessionId });
     console.log('[vapi-webhook] DEBUG - Full payload structure:', {
       functionCall: functionCall,
       callMetadata: payload.call?.metadata,
-      parametersSessionId: parameters.session_id,
+      parametersSessionId: parameters?.sessionId,
+      parametersSessionIdOld: parameters?.session_id,
       metadataSessionId: payload.call?.metadata?.sessionId,
+      debugInfo: parameters?.debugInfo,
       timestamp: new Date().toISOString()
     });
+    
+    // Log debug info if provided by assistant
+    if (parameters?.debugInfo) {
+      console.log('[vapi-webhook] ASSISTANT DEBUG INFO:', parameters.debugInfo);
+    }
 
     // Validate session ID is present
     if (!sessionId) {
-      console.error('[vapi-webhook] ERROR - Missing session_id! Available data:', {
+      console.error('[vapi-webhook] ERROR - Missing sessionId! Available data:', {
         parameters: parameters,
         callMetadata: payload.call?.metadata,
         fullPayload: payload
       });
-      throw new Error('Missing session_id parameter - commands cannot be routed to specific user');
+      throw new Error('Missing sessionId parameter - commands cannot be routed to specific user');
     }
 
     // Validate function call and prepare command
