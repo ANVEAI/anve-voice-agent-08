@@ -10,9 +10,11 @@ interface VoiceCommand {
   [key: string]: any;
 }
 
+// IMPORTANT: Replace these with your actual Vapi credentials from https://dashboard.vapi.ai
+// Make sure you're using your PUBLIC KEY (not private key)
 const VAPI_CONFIG = {
-  publicKey: 'cb1d5a08-cd64-4a90-b07e-2e89a7c5a40b',
-  assistantId: 'dab1e93b-a6d7-46fa-a3d6-db0f8bb43bba',
+  publicKey: 'YOUR_VAPI_PUBLIC_KEY_HERE', // Get this from Vapi Dashboard -> Account -> Keys
+  assistantId: 'YOUR_ASSISTANT_ID_HERE', // Get this from Vapi Dashboard -> Assistants
 };
 
 const CustomVoiceWidget = () => {
@@ -35,6 +37,12 @@ const CustomVoiceWidget = () => {
 
   // Initialize Vapi SDK
   useEffect(() => {
+    // Check if keys are configured
+    if (!VAPI_CONFIG.publicKey || VAPI_CONFIG.publicKey === 'YOUR_VAPI_PUBLIC_KEY_HERE') {
+      console.error('[CustomVoiceWidget] Please configure your Vapi Public Key');
+      return;
+    }
+    
     if (!vapiRef.current) {
       vapiRef.current = new Vapi(VAPI_CONFIG.publicKey);
       
@@ -257,7 +265,14 @@ const CustomVoiceWidget = () => {
   };
 
   const startCall = async () => {
-    if (!vapiRef.current) return;
+    if (!vapiRef.current) {
+      toast({
+        title: "Configuration Required",
+        description: "Please configure your Vapi Public Key and Assistant ID in CustomVoiceWidget.tsx",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLoading(true);
     setStatus('connecting');
