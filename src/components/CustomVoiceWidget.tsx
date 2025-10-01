@@ -137,7 +137,10 @@ const CustomVoiceWidget = () => {
     setStatus('processing');
     
     try {
-      switch (command.type) {
+      // Handle both 'type' and 'action' fields for backward compatibility
+      const commandType = (command as any).action || command.type;
+      
+      switch (commandType) {
         case 'scroll':
           handleScroll(command.direction);
           break;
@@ -151,7 +154,7 @@ const CustomVoiceWidget = () => {
           handleToggle(command);
           break;
         default:
-          console.warn('[CustomVoiceWidget] Unknown command type:', command.type);
+          console.warn('[CustomVoiceWidget] Unknown command type:', commandType, 'Full command:', command);
       }
     } catch (error) {
       console.error('[CustomVoiceWidget] Error executing command:', error);
