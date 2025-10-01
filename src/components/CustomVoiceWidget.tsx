@@ -10,11 +10,9 @@ interface VoiceCommand {
   [key: string]: any;
 }
 
-// IMPORTANT: Replace these with your actual Vapi credentials from https://dashboard.vapi.ai
-// Make sure you're using your PUBLIC KEY (not private key)
 const VAPI_CONFIG = {
-  publicKey: 'YOUR_VAPI_PUBLIC_KEY_HERE', // Get this from Vapi Dashboard -> Account -> Keys
-  assistantId: 'YOUR_ASSISTANT_ID_HERE', // Get this from Vapi Dashboard -> Assistants
+  publicKey: '27b4cb1c-417c-46a8-99f1-5caae66ec27c',
+  assistantId: '65002353-42ce-4d46-aa9e-2de77cfa317b',
 };
 
 const CustomVoiceWidget = () => {
