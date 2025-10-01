@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import VoiceNavigator from "./components/VoiceNavigator";
+import CustomVoiceWidget from "./components/CustomVoiceWidget";
 import Index from "./pages/Index";
 import Waitlist from "./pages/Waitlist";
 import Pricing from "./pages/Pricing";
@@ -17,7 +17,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <VoiceNavigator />
+      <CustomVoiceWidget />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />

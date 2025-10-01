@@ -392,7 +392,7 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
       const pageMatch = match[0].match(/\b(resources?|feedback|contact|help|support|pricing|plans?|waitlist|signup?|sign\s+up|home|homepage|main)\b/);
       if (pageMatch) {
         const pageName = pageMatch[1].replace(/s$/, '').replace(/\s+/g, ' '); // Remove plural 's' and normalize spaces
-        const targetPage = pageAliases[pageName.toLowerCase()] || pageName.toLowerCase();
+        const targetPage = pageAliases[pageName.toLowerCase() as keyof typeof pageAliases] || pageName.toLowerCase();
         
         console.log('📍 Page navigation detected - Page:', pageName, '→ Target:', targetPage);
         
@@ -497,22 +497,22 @@ function classifyWithPatterns(text: string, sessionId: string, currentUrl?: stri
 
         switch (intentType) {
           case 'scroll':
-            action.direction = config.getDirection(text);
+            action.direction = 'getDirection' in config ? config.getDirection(text) : undefined;
             break;
           case 'click':
-            const target = config.getTarget(text);
+            const target = 'getTarget' in config ? config.getTarget(text) : null;
             if (target) action.targetText = target;
             break;
           case 'fill':
-            const value = config.getValue(text);
-            const fieldHint = config.getFieldHint(text);
+            const value = 'getValue' in config ? config.getValue(text) : undefined;
+            const fieldHint = 'getFieldHint' in config ? config.getFieldHint(text) : null;
             if (value) {
               action.value = value;
               action.fieldHint = fieldHint;
             }
             break;
           case 'toggle':
-            const toggleTarget = config.getTarget(text);
+            const toggleTarget = 'getTarget' in config ? config.getTarget(text) : null;
             if (toggleTarget) action.target = toggleTarget;
             break;
         }
