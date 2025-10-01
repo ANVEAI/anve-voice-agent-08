@@ -13,8 +13,8 @@ const VoiceNavigator = () => {
         
         // VAPI Configuration - Replace with your actual values
         const VAPI_CONFIG = {
-          publicKey: 'abb6a5c0-4f3d-4aa5-9e11-6ccfdd1e1991', // Your VAPI public key
-          assistantId: 'e15a2050-1aaa-4b75-9a44-32b3f054fbe5', // Your VAPI assistant ID
+          publicKey: '27b4cb1c-417c-46a8-99f1-5caae66ec27c', // Your VAPI public key
+          assistantId: '65002353-42ce-4d46-aa9e-2de77cfa317b', // Your VAPI assistant ID
           position: 'bottom-right',
           theme: 'light'
         };
