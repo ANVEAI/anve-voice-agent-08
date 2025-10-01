@@ -207,17 +207,55 @@ const CustomVoiceWidget = () => {
   };
 
   const handleFill = (command: any) => {
-    const { targetText, value, fieldType } = command;
+    // Map fieldHint to fieldType for backward compatibility
+    const fieldType = command.fieldHint || command.fieldType;
+    const { targetText, value } = command;
+    
+    console.log('[CustomVoiceWidget] handleFill called with:', { targetText, value, fieldType, fullCommand: command });
+    
     const input = findInputField(targetText, fieldType);
 
-    if (input && input instanceof HTMLInputElement) {
-      input.value = value;
+    if (input && (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
+      console.log('[CustomVoiceWidget] Found input field:', input);
+      
+      // Set the value using native setter to bypass readonly
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set;
+      
+      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value'
+      )?.set;
+      
+      if (input instanceof HTMLInputElement && nativeInputValueSetter) {
+        nativeInputValueSetter.call(input, value);
+      } else if (input instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {
+        nativeTextAreaValueSetter.call(input, value);
+      } else {
+        input.value = value;
+      }
+      
+      // Trigger React events
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Focus the field to ensure it's active
+      input.focus();
+      
+      console.log('[CustomVoiceWidget] Successfully filled field with:', value);
       
       toast({
         title: "Field Filled",
         description: `Entered: ${value}`,
+      });
+    } else {
+      console.warn('[CustomVoiceWidget] Could not find input field for:', { targetText, fieldType });
+      toast({
+        title: "Field Not Found",
+        description: "Could not locate the input field",
+        variant: "destructive",
       });
     }
   };
@@ -247,22 +285,65 @@ const CustomVoiceWidget = () => {
   };
 
   const findInputField = (targetText?: string, fieldType?: string): HTMLElement | null => {
+    console.log('[CustomVoiceWidget] findInputField called with:', { targetText, fieldType });
+    
+    // Try to find by label text
     if (targetText) {
       const label = Array.from(document.querySelectorAll('label')).find(
         l => l.textContent?.toLowerCase().includes(targetText.toLowerCase())
       );
       if (label) {
         const forAttr = label.getAttribute('for');
-        if (forAttr) return document.getElementById(forAttr);
-        return label.querySelector('input, textarea') as HTMLElement;
+        if (forAttr) {
+          const element = document.getElementById(forAttr);
+          console.log('[CustomVoiceWidget] Found input by label "for" attribute:', element);
+          return element;
+        }
+        const nestedInput = label.querySelector('input, textarea') as HTMLElement;
+        console.log('[CustomVoiceWidget] Found nested input in label:', nestedInput);
+        return nestedInput;
       }
     }
     
+    // Try to find by field type
     if (fieldType) {
-      return document.querySelector(`input[type="${fieldType}"]`) as HTMLElement;
+      const typeMap: Record<string, string> = {
+        'email': 'email',
+        'name': 'text',
+        'text': 'text',
+        'password': 'password',
+        'tel': 'tel',
+        'phone': 'tel',
+        'number': 'number',
+      };
+      
+      const inputType = typeMap[fieldType.toLowerCase()] || fieldType;
+      const element = document.querySelector(`input[type="${inputType}"]`) as HTMLElement;
+      
+      if (element) {
+        console.log('[CustomVoiceWidget] Found input by type:', element);
+        return element;
+      }
     }
     
-    return document.querySelector('input, textarea') as HTMLElement;
+    // Fallback: Find the first visible and enabled input
+    const inputs = Array.from(document.querySelectorAll('input, textarea')) as HTMLElement[];
+    const visibleInput = inputs.find(input => {
+      const rect = input.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0 && 
+                       window.getComputedStyle(input).visibility !== 'hidden' &&
+                       window.getComputedStyle(input).display !== 'none';
+      const isEnabled = !(input as HTMLInputElement).disabled;
+      return isVisible && isEnabled;
+    });
+    
+    if (visibleInput) {
+      console.log('[CustomVoiceWidget] Found visible input as fallback:', visibleInput);
+      return visibleInput;
+    }
+    
+    console.warn('[CustomVoiceWidget] No suitable input field found');
+    return null;
   };
 
   const startCall = async () => {
