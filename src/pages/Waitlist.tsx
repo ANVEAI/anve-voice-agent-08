@@ -5,7 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Mail, User, Phone, Globe, Zap, Users, Building2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function Waitlist() {
   const [formData, setFormData] = useState({
@@ -90,11 +89,23 @@ export default function Waitlist() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.functions.invoke('send-trial-application', {
-        body: submissionData
-      });
+      // Create FormData for Google Forms submission
+      const googleFormData = new FormData();
+      googleFormData.append('entry.715009405', submissionData.name);
+      googleFormData.append('entry.1706641438', submissionData.email);
+      googleFormData.append('entry.772060020', submissionData.phone);
+      googleFormData.append('entry.143944321', submissionData.company);
+      googleFormData.append('entry.986452663', submissionData.website);
+      googleFormData.append('entry.189219768', submissionData.comments);
 
-      if (error) throw error;
+      // Submit to Google Forms
+      const formUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSdfqXW44dR3sgIHWmAYWMZ2OSc2e9aR40r7MNyhi8QCg0UnXg/formResponse';
+      
+      await fetch(formUrl, {
+        method: 'POST',
+        body: googleFormData,
+        mode: 'no-cors'
+      });
 
       toast({
         title: "✅ Application submitted!",
