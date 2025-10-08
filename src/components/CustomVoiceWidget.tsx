@@ -452,7 +452,7 @@ const CustomVoiceWidget = () => {
         </Button>
 
         {/* Powered By Label */}
-        <p className="text-[20px] text-muted-foreground/60 mt-1">
+        <p className="text-[13px] text-muted-foreground/60 mt-1">
           powered by <span className="font-semibold">Anve Voice</span>
         </p>
       </div>
