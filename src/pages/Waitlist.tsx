@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Mail, User, Phone, Globe, Zap, Users } from "lucide-react";
+import { ArrowLeft, Mail, User, Phone, Globe, Zap, Users, Building2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -11,12 +12,14 @@ export default function Waitlist() {
     name: "",
     email: "",
     phone: "",
-    website: ""
+    website: "",
+    company: "",
+    comments: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
@@ -34,7 +37,9 @@ export default function Waitlist() {
       name: (formDataObj.get('name') as string) || formData.name,
       email: (formDataObj.get('email') as string) || formData.email,
       phone: (formDataObj.get('phone') as string) || formData.phone,
-      website: (formDataObj.get('website') as string) || formData.website
+      website: (formDataObj.get('website') as string) || formData.website,
+      company: (formDataObj.get('company') as string) || formData.company,
+      comments: (formDataObj.get('comments') as string) || formData.comments
     };
     
     // Validation
@@ -98,7 +103,7 @@ export default function Waitlist() {
       
       // Clear form
       setTimeout(() => {
-        setFormData({ name: "", email: "", phone: "", website: "" });
+        setFormData({ name: "", email: "", phone: "", website: "", company: "", comments: "" });
       }, 100);
     } catch (error: any) {
       console.error("Submission error:", error);
@@ -262,7 +267,43 @@ export default function Waitlist() {
                       required
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Include https://</p>
+                </div>
+
+                {/* Company */}
+                <div className="space-y-2">
+                  <label htmlFor="company" className="text-sm font-medium text-foreground">
+                    Company <span className="text-muted-foreground">(Optional)</span>
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="company"
+                      name="company"
+                      type="text"
+                      placeholder="Your Company Name"
+                      value={formData.company}
+                      onChange={handleChange}
+                      className="pl-12 h-12"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Comments/Feedback */}
+              <div className="space-y-2">
+                <label htmlFor="comments" className="text-sm font-medium text-foreground">
+                  Any comments/Feedback? <span className="text-muted-foreground">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <Textarea
+                    id="comments"
+                    name="comments"
+                    placeholder="Any specific requirements or questions?"
+                    value={formData.comments}
+                    onChange={handleChange}
+                    className="pl-12 min-h-[100px]"
+                  />
                 </div>
               </div>
 
