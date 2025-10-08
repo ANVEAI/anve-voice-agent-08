@@ -319,9 +319,24 @@ const CustomVoiceWidget = () => {
         'url': 'url',
         'site': 'url',
         'web': 'url',
+        'comments': 'textarea',
+        'feedback': 'textarea',
+        'message': 'textarea',
+        'note': 'textarea',
       };
       
-      const inputType = typeMap[fieldType.toLowerCase()] || fieldType;
+      const fieldTypeLower = fieldType.toLowerCase();
+      const inputType = typeMap[fieldTypeLower] || fieldType;
+      
+      // For textarea fields, prioritize textarea elements
+      if (inputType === 'textarea') {
+        const textarea = document.querySelector('textarea') as HTMLElement;
+        if (textarea) {
+          console.log('[CustomVoiceWidget] Found textarea:', textarea);
+          return textarea;
+        }
+      }
+      
       const element = document.querySelector(`input[type="${inputType}"]`) as HTMLElement;
       
       if (element) {
@@ -330,7 +345,6 @@ const CustomVoiceWidget = () => {
       }
       
       // Also try to find by name attribute (e.g., name="website" or name="url")
-      const fieldTypeLower = fieldType.toLowerCase();
       const nameElement = document.querySelector(`input[name="${fieldTypeLower}"], input[name*="${fieldTypeLower}"]`) as HTMLElement;
       
       if (nameElement) {
