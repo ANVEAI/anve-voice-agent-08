@@ -121,7 +121,8 @@ const FIELD_HINTS = [
   'address','city','state','zip','postcode','postal',
   'message','comments','feedback','note',
   'company','organization','org',
-  'subject','title'
+  'subject','title',
+  'website','url','site','web'
 ];
 
 const VERBS = 'type|enter|fill|set|write|put|input|spell|say|provide|give|update|use|paste';

@@ -315,6 +315,10 @@ const CustomVoiceWidget = () => {
         'tel': 'tel',
         'phone': 'tel',
         'number': 'number',
+        'website': 'url',
+        'url': 'url',
+        'site': 'url',
+        'web': 'url',
       };
       
       const inputType = typeMap[fieldType.toLowerCase()] || fieldType;
@@ -323,6 +327,15 @@ const CustomVoiceWidget = () => {
       if (element) {
         console.log('[CustomVoiceWidget] Found input by type:', element);
         return element;
+      }
+      
+      // Also try to find by name attribute (e.g., name="website" or name="url")
+      const fieldTypeLower = fieldType.toLowerCase();
+      const nameElement = document.querySelector(`input[name="${fieldTypeLower}"], input[name*="${fieldTypeLower}"]`) as HTMLElement;
+      
+      if (nameElement) {
+        console.log('[CustomVoiceWidget] Found input by name attribute:', nameElement);
+        return nameElement;
       }
     }
     
