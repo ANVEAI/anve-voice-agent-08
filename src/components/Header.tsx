@@ -187,21 +187,14 @@ export function Header() {
 
           {/* CTA Buttons */}
           <div className="flex items-center space-x-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden sm:flex">
-                  <Star className="w-4 h-4 mr-2" />
-                  <span>Star on GitHub</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-card border-border">
-                <DropdownMenuItem disabled>
-                  <span className="text-muted-foreground">Coming Soon</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <a href="https://youtu.be/DPgaW2vwUdg" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="hidden sm:flex">
+                <Star className="w-4 h-4 mr-2" />
+                <span>Watch Demo</span>
+              </Button>
+            </a>
             <Button variant="hero" size="sm" asChild>
-              <Link to="/waitlist">Join Waitlist</Link>
+              <Link to="/waitlist">Apply For Free Trial</Link>
             </Button>
           </div>
         </nav>

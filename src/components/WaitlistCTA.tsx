@@ -30,7 +30,7 @@ export function WaitlistCTA() {
             <div className="bg-gradient-card border border-border rounded-xl md:rounded-2xl p-6 sm:p-8 md:p-12 shadow-card">
               <div className="space-y-6 md:space-y-8">
                 <p className="text-lg sm:text-xl text-muted-foreground">
-                  Early adopters will receive:
+                  Start your free trial and get:
                 </p>
 
                 {/* Benefits List */}
@@ -53,7 +53,7 @@ export function WaitlistCTA() {
                   <Button variant="hero" size="default" asChild className="text-lg sm:text-xl px-8 sm:px-12 py-4 sm:py-6 w-full sm:w-auto">
                     <Link to="/waitlist" className="flex items-center justify-center space-x-2">
                       <Users className="w-5 h-5 sm:w-6 sm:h-6" />
-                      <span>Be the first to voice-enable your site</span>
+                      <span>Apply For Free Trial</span>
                     </Link>
                   </Button>
                 </div>

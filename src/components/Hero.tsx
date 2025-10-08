@@ -40,23 +40,16 @@ export function Hero() {
             <Button variant="hero" size="default" asChild className="text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto">
               <Link to="/waitlist" className="flex items-center justify-center space-x-2">
                 <Rocket className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Join the Waitlist</span>
+                <span>Apply For Free Trial</span>
               </Link>
             </Button>
             
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="default" className="text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto">
-                  <Star className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  <span>Star us on GitHub</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-card border-border">
-                <DropdownMenuItem disabled>
-                  <span className="text-muted-foreground">Coming Soon</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant="outline" size="default" asChild className="text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto">
+              <a href="https://youtu.be/DPgaW2vwUdg" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center space-x-2">
+                <Star className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Watch Demo</span>
+              </a>
+            </Button>
           </div>
 
           {/* Demo Preview */}

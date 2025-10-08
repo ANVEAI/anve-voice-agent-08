@@ -2,25 +2,81 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Mail, Zap, Users, Crown } from "lucide-react";
+import { ArrowLeft, Mail, User, Phone, Globe, Zap, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Waitlist() {
-  const [email, setEmail] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    website: ""
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Get the actual value from the form input to handle voice-filled values
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
-    const emailValue = formData.get('email') as string || email;
+    // Get values from form to handle voice-filled values
+    const form = e.currentTarget as HTMLFormElement;
+    const formDataObj = new FormData(form);
     
-    if (!emailValue || !emailValue.trim()) {
+    const submissionData = {
+      name: (formDataObj.get('name') as string) || formData.name,
+      email: (formDataObj.get('email') as string) || formData.email,
+      phone: (formDataObj.get('phone') as string) || formData.phone,
+      website: (formDataObj.get('website') as string) || formData.website
+    };
+    
+    // Validation
+    if (!submissionData.name.trim() || !submissionData.email.trim() || 
+        !submissionData.phone.trim() || !submissionData.website.trim()) {
       toast({
-        title: "Email required",
-        description: "Please enter your email address",
+        title: "All fields required",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(submissionData.email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Phone validation
+    const phoneRegex = /^[\d\s\+\-\(\)]{10,15}$/;
+    if (!phoneRegex.test(submissionData.phone)) {
+      toast({
+        title: "Invalid phone number",
+        description: "Please enter a valid phone number",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // URL validation
+    try {
+      new URL(submissionData.website);
+    } catch {
+      toast({
+        title: "Invalid website URL",
+        description: "Please include https:// in your website URL",
         variant: "destructive"
       });
       return;
@@ -29,31 +85,26 @@ export default function Waitlist() {
     setIsSubmitting(true);
 
     try {
-      // Google Form submission
-      const googleFormData = new FormData();
-      googleFormData.append('entry.1769329851', emailValue);
-      
-      const googleFormUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSekuHBWYzmRhcbQ6Qhh-3xCzl6Ti-FFDS3Wz_THm54qEodnRw/formResponse';
-      
-      await fetch(googleFormUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: googleFormData
+      const { error } = await supabase.functions.invoke('send-trial-application', {
+        body: submissionData
       });
 
+      if (error) throw error;
+
       toast({
-        title: "✅ You're on the waitlist. We'll send early access invites soon.",
-        description: "",
+        title: "✅ Application submitted!",
+        description: "We'll contact you within 24 hours.",
       });
       
-      // Use setTimeout to delay clearing the email to prevent race conditions with voice commands
+      // Clear form
       setTimeout(() => {
-        setEmail("");
+        setFormData({ name: "", email: "", phone: "", website: "" });
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Submission error:", error);
       toast({
         title: "Something went wrong",
-        description: "Please try again or contact us directly",
+        description: "Please try again or contact us at info@anveai.com",
         variant: "destructive"
       });
     } finally {
@@ -64,13 +115,13 @@ export default function Waitlist() {
   const benefits = [
     {
       icon: <Zap className="w-5 h-5" />,
-      title: "Free Early Access",
-      description: "Get the voice OS embed for free during early access period"
+      title: "Free Trial Access",
+      description: "Get full access to the voice OS embed during your trial period"
     },
     {
       icon: <Users className="w-5 h-5" />,
       title: "Priority Support",
-      description: "Direct line to our team for feature requests and support"
+      description: "Direct line to our team for setup and integration support"
     }
   ];
 
@@ -97,13 +148,16 @@ export default function Waitlist() {
 
             {/* Headlines */}
             <div className="space-y-4">
-              <h1 className="text-4xl md:text-5xl font-bold">
-                <span className="bg-gradient-hero bg-clip-text text-transparent">
-                  Join the Voice-First Revolution
-                </span>
+              <h1 className="text-3xl md:text-4xl font-bold">
+                Apply for Free Trial and
               </h1>
-              <p className="text-xl text-muted-foreground">
-                Be among the first 200 websites to experience the future of web interaction
+              <h2 className="text-4xl md:text-5xl font-bold">
+                <span className="bg-gradient-hero bg-clip-text text-transparent">
+                  Try AI VoiceBot for Free
+                </span>
+              </h2>
+              <p className="text-lg text-muted-foreground">
+                No credit card required | Upgrade when you're ready
               </p>
             </div>
 
@@ -129,22 +183,86 @@ export default function Waitlist() {
           {/* Form */}
           <div className="bg-card border border-border rounded-2xl p-8 shadow-card mb-12">
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium text-foreground">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-12 h-12"
-                    required
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Full Name */}
+                <div className="space-y-2">
+                  <label htmlFor="name" className="text-sm font-medium text-foreground">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="name"
+                      name="name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="pl-12 h-12"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Email Address */}
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="pl-12 h-12"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Phone Number */}
+                <div className="space-y-2">
+                  <label htmlFor="phone" className="text-sm font-medium text-foreground">
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="+1 (555) 123-4567"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="pl-12 h-12"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Website */}
+                <div className="space-y-2">
+                  <label htmlFor="website" className="text-sm font-medium text-foreground">
+                    Website
+                  </label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="website"
+                      name="website"
+                      type="url"
+                      placeholder="https://yoursite.com"
+                      value={formData.website}
+                      onChange={handleChange}
+                      className="pl-12 h-12"
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Include https://</p>
                 </div>
               </div>
 
@@ -155,12 +273,12 @@ export default function Waitlist() {
                 className="w-full h-12"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Joining..." : "Join the Waitlist"}
+                {isSubmitting ? "Submitting..." : "Apply Now"}
               </Button>
             </form>
 
             <p className="text-xs text-center text-muted-foreground mt-4">
-              No spam. We'll only email you when early access is ready.
+              We'll review your application and get back to you within 24 hours.
             </p>
           </div>
 

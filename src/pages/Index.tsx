@@ -7,11 +7,13 @@ import { WhoItsFor } from "@/components/WhoItsFor";
 import { WaitlistCTA } from "@/components/WaitlistCTA";
 import { Movement } from "@/components/Movement";
 import { Footer } from "@/components/Footer";
+import ExitIntentPopup from "@/components/ExitIntentPopup";
 
 const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <ExitIntentPopup />
       <Hero />
       <WhatItDoes />
       <WhyItMatters />
