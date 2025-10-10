@@ -74,13 +74,12 @@ export default function Waitlist() {
       return;
     }
 
-    // URL validation
-    try {
-      new URL(submissionData.website);
-    } catch {
+    // Website validation - accepts domain with or without protocol
+    const websitePattern = /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/.*)?$/i;
+    if (!websitePattern.test(submissionData.website.trim())) {
       toast({
-        title: "Invalid website URL",
-        description: "Please include https:// in your website URL",
+        title: "Invalid website",
+        description: "Please enter a valid website (e.g., google.com or https://google.com)",
         variant: "destructive"
       });
       return;
