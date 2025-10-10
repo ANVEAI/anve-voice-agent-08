@@ -269,8 +269,11 @@ export default function Waitlist() {
                     <Input
                       id="website"
                       name="website"
-                      type="url"
-                      placeholder="https://yoursite.com"
+                      type="text"
+                      inputMode="url"
+                      autoComplete="url"
+                      spellCheck={false}
+                      placeholder="yoursite.com"
                       value={formData.website}
                       onChange={handleChange}
                       className="pl-12 h-12"
