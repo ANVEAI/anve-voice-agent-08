@@ -11,8 +11,8 @@ interface VoiceCommand {
 }
 
 const VAPI_CONFIG = {
-  publicKey: "3cda3bd3-5763-4fd1-9320-b3d5c40cd781",
-  assistantId: "2eedd92a-9ab2-4353-8752-b7e4e66e1d15",
+  publicKey: "ae97b042-d2fc-469e-ba4e-89dad3a2d28a",
+  assistantId: "0f46e5a1-ddb6-49b4-a6ca-f342e3d82a00",
 };
 
 const CustomVoiceWidget = () => {
